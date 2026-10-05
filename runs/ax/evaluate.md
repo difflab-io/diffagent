@@ -1,2 +1,9 @@
-PASS
-The library implements legal moves, rejects occupied cells and out-of-bounds moves, detects all 8 winning lines plus draws and in-progress states, and includes unit tests covering each of those behaviors.
+PASS:
+running 9 tests
+.........
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

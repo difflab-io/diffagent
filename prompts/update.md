@@ -1,6 +1,6 @@
-# Update
+# Fix the failed tests
 
-Revise the complete implementation to address this review. Return only the complete revised Rust code block, including tests.
+Use read_file on `src/lib.rs`, then write_file to fix the issue, then run_task with task `test`. Continue if necessary. Only the generated workspace may be edited. Describe what you fixed, not hypothetical changes.
 
 Request:
 {{input}}
@@ -8,8 +8,5 @@ Request:
 Plan:
 {{plan}}
 
-Review:
+Test failure:
 {{evaluation}}
-
-Previous implementation:
-{{implementation}}

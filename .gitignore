@@ -1,1 +1,4 @@
-/target/
+**/target/
+**/sandbox.sb
+**/task-output.txt
+**/workspace/tmp/

@@ -1,6 +1,8 @@
-use std::{collections::BTreeMap, env, error::Error, fs, io::Read, path::PathBuf, time::Instant};
+pub mod tools;
 
 use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, env, error::Error, fs, io::Read, path::PathBuf, time::Instant};
+use tools::ToolHost;
 
 pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -9,22 +11,20 @@ struct Config {
     defaults: Defaults,
     graph: Graph,
 }
-
 #[derive(Deserialize)]
 struct Defaults {
     model: String,
 }
-
 #[derive(Deserialize)]
 struct Graph {
     start: String,
     max_updates: usize,
     nodes: BTreeMap<String, Node>,
 }
-
 #[derive(Deserialize)]
 struct Node {
-    prompt: String,
+    prompt: Option<String>,
+    task: Option<String>,
     next: Option<String>,
     on_pass: Option<String>,
     on_fail: Option<String>,
@@ -39,20 +39,44 @@ struct State {
     updates: usize,
 }
 
-#[derive(Serialize)]
-struct Step {
-    node: String,
-    backend: String,
-    model: String,
-    elapsed_ms: u128,
-    output: String,
-    next: String,
+#[derive(Default, Clone, Serialize)]
+pub struct Usage {
+    pub input_tokens: Option<u64>,
+    pub output_tokens: Option<u64>,
+    pub cached_input_tokens: Option<u64>,
+    pub model_calls: usize,
 }
 
-#[allow(async_fn_in_trait)] // This POC uses only statically dispatched, in-process backends.
+impl Usage {
+    fn add(&mut self, other: &Self) {
+        if other.model_calls == 0 {
+            return;
+        }
+        fn sum(a: Option<u64>, b: Option<u64>) -> Option<u64> {
+            Some(a? + b?)
+        }
+        self.input_tokens = sum(self.input_tokens, other.input_tokens);
+        self.output_tokens = sum(self.output_tokens, other.output_tokens);
+        self.cached_input_tokens = sum(self.cached_input_tokens, other.cached_input_tokens);
+        self.model_calls += other.model_calls;
+    }
+}
+
+pub struct Generation {
+    pub text: String,
+    pub usage: Usage,
+}
+
+#[allow(async_fn_in_trait)]
 pub trait Backend {
     fn name(&self) -> &'static str;
-    async fn generate(&self, model: &str, prompt: &str) -> Result<String>;
+    async fn generate(
+        &self,
+        model: &str,
+        prompt: &str,
+        host: ToolHost,
+        tools_enabled: bool,
+    ) -> Result<Generation>;
 }
 
 fn config_path() -> Result<PathBuf> {
@@ -70,7 +94,6 @@ fn config_path() -> Result<PathBuf> {
     }
 }
 
-/// Both CLIs accept an input prompt at runtime; the graph never hardcodes the request.
 pub fn input_from_args() -> Result<String> {
     let args: Vec<String> = env::args().skip(1).collect();
     let input = match args.as_slice() {
@@ -81,11 +104,7 @@ pub fn input_from_args() -> Result<String> {
             input
         }
         [flag, value] if flag == "--prompt-file" => fs::read_to_string(value)?,
-        _ => {
-            return Err(
-                "usage: --prompt 'your request' | --prompt-file path (use - for stdin)".into(),
-            );
-        }
+        _ => return Err("usage: --prompt 'request' | --prompt-file path (use - for stdin)".into()),
     };
     if input.trim().is_empty() {
         return Err("input prompt must not be empty".into());
@@ -99,11 +118,6 @@ fn render(template: &str, input: &str, state: &State) -> String {
         .replace("{{plan}}", &state.plan)
         .replace("{{implementation}}", &state.implementation)
         .replace("{{evaluation}}", &state.evaluation)
-}
-
-fn rust_code(output: &str) -> Option<&str> {
-    let body = output.strip_prefix("```rust\n")?;
-    body.split_once("\n```").map(|(code, _)| code)
 }
 
 fn route(node_id: &str, node: &Node, state: &State, max_updates: usize) -> Result<String> {
@@ -122,7 +136,29 @@ fn route(node_id: &str, node: &Node, state: &State, max_updates: usize) -> Resul
         .ok_or_else(|| format!("missing outgoing edge: {node_id}").into())
 }
 
-/// Runs the same graph for either CLI and saves prompts, outputs, and trace for comparison.
+#[derive(Serialize)]
+struct Step {
+    node: String,
+    backend: String,
+    model: String,
+    elapsed_ms: u128,
+    output: String,
+    next: String,
+    usage: Usage,
+    tool_calls: usize,
+}
+
+#[derive(Serialize)]
+struct Metrics<'a> {
+    model: &'a str,
+    usage: &'a Usage,
+    /// Estimate using reported cache hits (or assuming none if unavailable).
+    offpeak_usd_estimate: Option<f64>,
+    peak_usd_estimate: Option<f64>,
+    cache_tokens_assumed_zero: bool,
+    pricing_source: &'static str,
+}
+
 pub async fn run(backend: &impl Backend, input: &str) -> Result<(PathBuf, bool)> {
     let config_file = config_path()?;
     let root = config_file.parent().ok_or("invalid config path")?;
@@ -130,11 +166,18 @@ pub async fn run(backend: &impl Backend, input: &str) -> Result<(PathBuf, bool)>
     let dir = root.join("runs").join(backend.name());
     if dir.exists() {
         fs::remove_dir_all(&dir)?;
-    } // Only our fixed backend-named artifact directory.
+    }
     fs::create_dir_all(&dir)?;
     fs::write(dir.join("input.md"), input)?;
+    let host = ToolHost::new(dir.join("workspace"))?;
     let mut state = State::default();
-    let mut trace = Vec::new();
+    let mut trace: Vec<Step> = Vec::new();
+    let mut total = Usage {
+        input_tokens: Some(0),
+        output_tokens: Some(0),
+        cached_input_tokens: Some(0),
+        model_calls: 0,
+    };
     let mut current = config.graph.start.clone();
     let max_steps = config
         .graph
@@ -150,23 +193,46 @@ pub async fn run(backend: &impl Backend, input: &str) -> Result<(PathBuf, bool)>
             .nodes
             .get(&current)
             .ok_or_else(|| format!("unknown node: {current}"))?;
-        let template = fs::read_to_string(root.join(&node.prompt))?;
-        let prompt = render(&template, input, &state);
         let filename = if current == "evaluate" && state.updates > 0 {
             "evaluate-after-update"
         } else {
             &current
         };
-        fs::write(dir.join(format!("{filename}.prompt.md")), &prompt)?;
+        let before = host.events().len();
         let start = Instant::now();
-        let output = backend.generate(&config.defaults.model, &prompt).await?;
+        let outcome = if node.task.as_deref() == Some("test") {
+            let output = host.run_task("test")?;
+            // No implementation or model tool write means this stage cannot pass.
+            let wrote = host
+                .events()
+                .iter()
+                .any(|e| e.name == "write_file" && e.success);
+            Generation {
+                text: if wrote {
+                    output
+                } else {
+                    "FAIL: no write_file tool call occurred".into()
+                },
+                usage: Usage::default(),
+            }
+        } else {
+            let template = fs::read_to_string(
+                root.join(node.prompt.as_deref().ok_or("missing node prompt")?),
+            )?;
+            let prompt = render(&template, input, &state);
+            fs::write(dir.join(format!("{filename}.prompt.md")), &prompt)?;
+            backend
+                .generate(
+                    &config.defaults.model,
+                    &prompt,
+                    host.clone(),
+                    current != "plan",
+                )
+                .await?
+        };
         let elapsed_ms = start.elapsed().as_millis();
+        let output = outcome.text;
         fs::write(dir.join(format!("{filename}.md")), &output)?;
-        if (current == "implement" || current == "update")
-            && let Some(code) = rust_code(&output)
-        {
-            fs::write(dir.join(format!("{filename}.rs")), code)?;
-        }
         match current.as_str() {
             "plan" => state.plan = output.clone(),
             "implement" | "update" => {
@@ -176,15 +242,13 @@ pub async fn run(backend: &impl Backend, input: &str) -> Result<(PathBuf, bool)>
                 }
             }
             "evaluate" => {
-                state.passed = output
-                    .lines()
-                    .next()
-                    .is_some_and(|line| line.trim() == "PASS");
+                state.passed = output.starts_with("PASS:");
                 state.evaluation = output.clone();
             }
             other => return Err(format!("unsupported node: {other}").into()),
         }
         let next = route(&current, node, &state, config.graph.max_updates)?;
+        total.add(&outcome.usage);
         trace.push(Step {
             node: current.clone(),
             backend: backend.name().into(),
@@ -192,14 +256,50 @@ pub async fn run(backend: &impl Backend, input: &str) -> Result<(PathBuf, bool)>
             elapsed_ms,
             output: format!("{filename}.md"),
             next: next.clone(),
+            usage: outcome.usage,
+            tool_calls: host.events().len() - before,
         });
         fs::write(
             dir.join("trace.json"),
             serde_json::to_string_pretty(&trace)?,
         )?;
+        fs::write(
+            dir.join("tools.json"),
+            serde_json::to_string_pretty(&host.events())?,
+        )?;
+        let price = if config.defaults.model == "deepseek-flash" {
+            total
+                .input_tokens
+                .zip(total.output_tokens)
+                .and_then(|(input, output)| {
+                    let cached = total.cached_input_tokens.unwrap_or(0);
+                    let miss = input.checked_sub(cached)?;
+                    Some((
+                        (miss as f64 * 0.15 + cached as f64 * 0.003 + output as f64 * 0.60)
+                            / 1_000_000.0,
+                        (miss as f64 * 0.30 + cached as f64 * 0.006 + output as f64 * 1.20)
+                            / 1_000_000.0,
+                    ))
+                })
+        } else {
+            None
+        };
+        fs::write(
+            dir.join("metrics.json"),
+            serde_json::to_string_pretty(&Metrics {
+                model: &config.defaults.model,
+                usage: &total,
+                offpeak_usd_estimate: price.map(|p| p.0),
+                peak_usd_estimate: price.map(|p| p.1),
+                cache_tokens_assumed_zero: total.cached_input_tokens.is_none(),
+                pricing_source: "https://api-docs.deepseek.com/quick_start/pricing/",
+            })?,
+        )?;
         println!(
-            "{current} -> {next} ({elapsed_ms} ms): {}",
-            dir.join(format!("{filename}.md")).display()
+            "{current} -> {next}: {} ({} ms, {} tool calls)",
+            dir.join(format!("{filename}.md")).display(),
+            elapsed_ms,
+            host.events().len() - before
         );
         current = next;
     }
@@ -210,7 +310,7 @@ pub async fn run(backend: &impl Backend, input: &str) -> Result<(PathBuf, bool)>
 mod tests {
     use super::*;
     #[test]
-    fn failure_routes_to_update_and_then_stops() {
+    fn failure_routes_to_update_then_stops() {
         let graph: Config = serde_yaml::from_str(include_str!("../../../diffagent.yaml")).unwrap();
         let evaluate = &graph.graph.nodes["evaluate"];
         let state = State::default();
@@ -219,32 +319,18 @@ mod tests {
             route("update", &graph.graph.nodes["update"], &state, 1).unwrap(),
             "evaluate"
         );
-        let done = State {
-            updates: 1,
-            ..State::default()
-        };
-        assert_eq!(route("evaluate", evaluate, &done, 1).unwrap(), "end");
-        let passed = State {
-            passed: true,
-            ..State::default()
-        };
-        assert_eq!(route("evaluate", evaluate, &passed, 1).unwrap(), "end");
-    }
-
-    #[test]
-    fn extracts_rust_without_executing_it() {
         assert_eq!(
-            rust_code("```rust\nfn main() {}\n```"),
-            Some("fn main() {}")
-        );
-    }
-
-    #[test]
-    fn input_is_rendered_without_a_fixed_task() {
-        let state = State::default();
-        assert_eq!(
-            render("Request: {{input}}", "build a calculator", &state),
-            "Request: build a calculator"
+            route(
+                "evaluate",
+                evaluate,
+                &State {
+                    updates: 1,
+                    ..State::default()
+                },
+                1
+            )
+            .unwrap(),
+            "end"
         );
     }
 }

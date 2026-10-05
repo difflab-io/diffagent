@@ -1,0 +1,13 @@
+{
+  "model": "deepseek-flash",
+  "usage": {
+    "input_tokens": 126519,
+    "output_tokens": 25232,
+    "cached_input_tokens": 112512,
+    "model_calls": 9
+  },
+  "offpeak_usd_estimate": 0.017577786,
+  "peak_usd_estimate": 0.035155572,
+  "cache_tokens_assumed_zero": false,
+  "pricing_source": "https://api-docs.deepseek.com/quick_start/pricing/"
+}

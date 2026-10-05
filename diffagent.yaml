@@ -1,5 +1,5 @@
 defaults:
-  model: deepseek-chat
+  model: deepseek-flash
 graph:
   start: plan
   max_updates: 1
@@ -11,7 +11,7 @@ graph:
       prompt: prompts/implement.md
       next: evaluate
     evaluate:
-      prompt: prompts/evaluate.md
+      task: test
       on_pass: end
       on_fail: update
     update:

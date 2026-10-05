@@ -1,0 +1,65 @@
+[
+  {
+    "name": "read_file",
+    "argument": "src/lib.rs",
+    "result": "// Replace this file with the requested implementation and tests.\n",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "read_file",
+    "argument": "Cargo.toml",
+    "result": "[package]\nname = \"generated-example\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (20157 bytes)",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (22186 bytes)",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "FAIL:\nwarning: variable does not need to be mutable\n   --> src/lib.rs:550:14\n    |\n550 |         let (mut game, states) = play_script(&DRAW_MOVES);\n    |              ----^^^^\n    |              |\n    |              help: remove this `mut`\n    |\n    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default\n\n\nrunning 24 tests\n....................... 23/24\ntests::occupied_cells_are_rejected_in_the_middle_of_a_game --- FAILED\n\nfailures:\n\n---- tests::occupied_cells_are_rejected_in_the_middle_of_a_game stdout ----\n\nthread 'tests::occupied_cells_are_rejected_in_the_middle_of_a_game' (82138194) panicked at src/lib.rs:395:9:\nassertion `left == right` failed\n  left: Ok(Win(X))\n right: Ok(InProgress)\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    tests::occupied_cells_are_rejected_in_the_middle_of_a_game\n\ntest result: FAILED. 23 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nerror: test failed, to rerun pass `--lib`\n",
+    "elapsed_ms": 3634,
+    "success": false
+  },
+  {
+    "name": "read_file",
+    "argument": "src/lib.rs",
+    "result": "//! A tiny tic-tac-toe engine.\n//!\n//! The crate exposes a 3x3 [`Board`], a [`Player`] enum, a [`Game`] driver that\n//! enforces legal moves, and a [`GameState`] describing whether play is ongoing,\n//! won by someone, or drawn.\n//!\n//! ```\n//! use generated_example::{Game, GameState, Player};\n//!\n//! let mut game = Game::new();\n//! game.play(0, 0).unwrap();\n//! game.play(1, 0).unwrap();\n//! game.play(0, 1).unwrap();\n//! game.play(1, 1).unwrap();\n//! assert_eq!(game.play(0, 2).unwrap(), GameState::Win(Player::X));\n//! ```\n\nuse std::fmt;\n\n/// Size of the square board (3x3).\npub const BOARD_SIZE: usize = 3;\n\n/// A tic-tac-toe player / mark.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum Player {\n    X,\n    O,\n}\n\nimpl Player {\n    /// The player who moves next.\n    pub fn other(self) -> Player {\n        match self {\n            Player::X => Player::O,\n            Player::O => Player::X,\n        }\n    }\n\n    /// Single-character rendering of the mark.\n    pub fn glyph(self) -> char {\n        match self {\n            Player::X => 'X',\n            Player::O => 'O',\n        }\n    }\n}\n\nimpl fmt::Display for Player {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {\n        write!(f, \"{}\", self.glyph())\n    }\n}\n\n/// Reason a move was rejected. Rejected moves never mutate the game.\n#[derive(Debug, Clone, Copy, PartialEq, Eq)]\npub enum MoveError {\n    /// Row or column was not in `0..3`.\n    OutOfBounds { row: usize, col: usize },\n    /// The target cell already holds a mark.\n    Occupied { row: usize, col: usize },\n    /// The game already ended in a win or a draw.\n    GameOver(GameState),\n}\n\nimpl fmt::Display for MoveError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {\n        match self {\n            MoveError::OutOfBounds { row, col } => {\n                write!(f, \"position ({row}, {col}) is outside the 3x3 board\")\n            }\n            MoveError::Occupied { row, col } => {\n                write!(f, \"cell ({row}, {col}) is already occupied\")\n            }\n            MoveError::GameOver(state) => write!(f, \"game is over ({state})\"),\n        }\n    }\n}\n\nimpl std::error::Error for MoveError {}\n\n/// Current status of a game.\n#[derive(Debug, Clone, Copy, PartialEq, Eq)]\npub enum GameState {\n    /// Moves remain and nobody has won.\n    InProgress,\n    /// `Player` completed a row, column, or diagonal.\n    Win(Player),\n    /// All nine cells are filled with no winning line.\n    Draw,\n}\n\nimpl GameState {\n    /// True once the game can no longer change.\n    pub fn is_finished(self) -> bool {\n        !matches!(self, GameState::InProgress)\n    }\n\n    /// The winning player, if any.\n    pub fn winner(self) -> Option<Player> {\n        match self {\n            GameState::Win(player) => Some(player),\n            _ => None,\n        }\n    }\n}\n\nimpl fmt::Display for GameState {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {\n        match self {\n            GameState::InProgress => write!(f, \"in progress\"),\n            GameState::Win(player) => write!(f, \"{player} wins\"),\n            GameState::Draw => write!(f, \"draw\"),\n        }\n    }\n}\n\n/// A 3x3 grid of optional marks.\n#[derive(Debug, Clone, Copy, PartialEq, Eq)]\npub struct Board {\n    cells: [[Option<Player>; BOARD_SIZE]; BOARD_SIZE],\n}\n\nimpl Default for Board {\n    fn default() -> Self {\n        Board::new()\n    }\n}\n\nimpl Board {\n    /// An empty board.\n    pub fn new() -> Self {\n        Board {\n            cells: [[None; BOARD_SIZE]; BOARD_SIZE],\n        }\n    }\n\n    /// Is `(row, col)` inside the board?\n    pub fn is_in_bounds(row: usize, col: usize) -> bool {\n        row < BOARD_SIZE && col < BOARD_SIZE\n    }\n\n    /// The mark at `(row, col)`, or `None` for empty or out-of-bounds cells.\n    pub fn get(&self, row: usize, col: usize) -> Option<Player> {\n        if !Board::is_in_bounds(row, col) {\n            return None;\n        }\n        self.cells[row][col]\n    }\n\n    /// Place `player` in `(row, col)`.\n    ///\n    /// Returns `No",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (22505 bytes)",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nrunning 24 tests\n........................\ntest result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nFailed to spawn \"/Users/siddharthkapoor/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc\": Os { code: 1, kind: PermissionDenied, message: \"Operation not permitted\" }\n\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s\n\nall doctests ran in 0.35s; merged doctests compilation took 0.00s\n",
+    "elapsed_ms": 3832,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nrunning 24 tests\n........................\ntest result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nFailed to spawn \"/Users/siddharthkapoor/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc\": Os { code: 1, kind: PermissionDenied, message: \"Operation not permitted\" }\n\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s\n\nall doctests ran in 0.31s; merged doctests compilation took 0.00s\n",
+    "elapsed_ms": 387,
+    "success": true
+  }
+]

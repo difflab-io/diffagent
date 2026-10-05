@@ -2,25 +2,46 @@
   {
     "node": "plan",
     "backend": "ax",
-    "model": "deepseek-chat",
-    "elapsed_ms": 2202,
+    "model": "deepseek-flash",
+    "elapsed_ms": 4920,
     "output": "plan.md",
-    "next": "implement"
+    "next": "implement",
+    "usage": {
+      "input_tokens": 239,
+      "output_tokens": 746,
+      "cached_input_tokens": 0,
+      "model_calls": 1
+    },
+    "tool_calls": 0
   },
   {
     "node": "implement",
     "backend": "ax",
-    "model": "deepseek-chat",
-    "elapsed_ms": 6236,
+    "model": "deepseek-flash",
+    "elapsed_ms": 12788,
     "output": "implement.md",
-    "next": "evaluate"
+    "next": "evaluate",
+    "usage": {
+      "input_tokens": 9408,
+      "output_tokens": 2745,
+      "cached_input_tokens": 8448,
+      "model_calls": 4
+    },
+    "tool_calls": 4
   },
   {
     "node": "evaluate",
     "backend": "ax",
-    "model": "deepseek-chat",
-    "elapsed_ms": 1242,
+    "model": "deepseek-flash",
+    "elapsed_ms": 49,
     "output": "evaluate.md",
-    "next": "end"
+    "next": "end",
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "model_calls": 0
+    },
+    "tool_calls": 1
   }
 ]

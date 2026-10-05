@@ -1,0 +1,30 @@
+[
+  {
+    "prompt_tokens": 439,
+    "completion_tokens": 96,
+    "total_tokens": 1175,
+    "reasoning_tokens": 12,
+    "cache_read_tokens": 640
+  },
+  {
+    "prompt_tokens": 235,
+    "completion_tokens": 2175,
+    "total_tokens": 3434,
+    "reasoning_tokens": 37,
+    "cache_read_tokens": 1024
+  },
+  {
+    "prompt_tokens": 134,
+    "completion_tokens": 38,
+    "total_tokens": 3500,
+    "reasoning_tokens": 0,
+    "cache_read_tokens": 3328
+  },
+  {
+    "prompt_tokens": 152,
+    "completion_tokens": 436,
+    "total_tokens": 4044,
+    "reasoning_tokens": 6,
+    "cache_read_tokens": 3456
+  }
+]

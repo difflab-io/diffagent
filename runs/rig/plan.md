@@ -1,7 +1,5 @@
-- **Board + move API**: Implement a 3×3 board with `make_move(row, col, player)` returning `Ok`/`Err`; reject moves on occupied cells and out-of-range indices.
-- **Win detection**: After each move, check the placed player's row, column, and both diagonals for three-in-a-row; return the winner.
-- **Draw detection**: If the board is full and no winner exists, report a draw.
-- **Game loop / CLI**: Simple `main` that alternates X and O, prints the board, prompts for coordinates, and handles invalid input by re-prompting.
-- **Unit tests**: Cover legal moves, occupied-cell rejection, each win type (row, col, both diagonals), and a draw.
-
-*Success criteria*: `cargo test` passes all above cases; `cargo run` plays a full game where illegal moves are rejected and terminal states (win/draw) end the loop.
+- Scaffold a Cargo project with a 3×3 `Board`, `Player`, and `GameState`; success: `cargo check` passes and `cargo run` starts a playable CLI.
+- Implement `play(row, col)` to accept empty cells and reject out-of-bounds or occupied cells; success: tests verify valid moves update the board and invalid moves return errors without mutation.
+- After each move, detect wins across all rows, columns, and both diagonals; success: tests cover each win type and confirm the correct winner.
+- Detect a draw only when all 9 cells are filled and no winning line exists; success: tests cover a full-board draw and no false draw before the board is full.
+- Add unit tests for legal moves, occupied rejection, row/column/diagonal wins, and draws; success: `cargo test` passes all tests and the CLI reports win/draw correctly.
