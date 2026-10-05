@@ -1,0 +1,44 @@
+[
+  {
+    "prompt_tokens": 569,
+    "completion_tokens": 89,
+    "total_tokens": 1298,
+    "reasoning_tokens": 8,
+    "cache_read_tokens": 640
+  },
+  {
+    "prompt_tokens": 230,
+    "completion_tokens": 1950,
+    "total_tokens": 3332,
+    "reasoning_tokens": 5,
+    "cache_read_tokens": 1152
+  },
+  {
+    "prompt_tokens": 160,
+    "completion_tokens": 93,
+    "total_tokens": 3453,
+    "reasoning_tokens": 55,
+    "cache_read_tokens": 3200
+  },
+  {
+    "prompt_tokens": 500,
+    "completion_tokens": 1978,
+    "total_tokens": 5806,
+    "reasoning_tokens": 54,
+    "cache_read_tokens": 3328
+  },
+  {
+    "prompt_tokens": 202,
+    "completion_tokens": 38,
+    "total_tokens": 5872,
+    "reasoning_tokens": 0,
+    "cache_read_tokens": 5632
+  },
+  {
+    "prompt_tokens": 343,
+    "completion_tokens": 416,
+    "total_tokens": 6519,
+    "reasoning_tokens": 53,
+    "cache_read_tokens": 5760
+  }
+]

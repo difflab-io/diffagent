@@ -94,22 +94,58 @@ fn config_path() -> Result<PathBuf> {
     }
 }
 
-pub fn input_from_args() -> Result<String> {
+pub struct RunArgs {
+    pub input: String,
+    pub fixture: Option<String>,
+    pub run_id: Option<String>,
+}
+
+fn safe_label(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 40
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+pub fn args_from_env() -> Result<RunArgs> {
+    let mut input = None;
+    let mut fixture = None;
+    let mut run_id = None;
     let args: Vec<String> = env::args().skip(1).collect();
-    let input = match args.as_slice() {
-        [flag, value] if flag == "--prompt" => value.clone(),
-        [flag, value] if flag == "--prompt-file" && value == "-" => {
-            let mut input = String::new();
-            std::io::stdin().read_to_string(&mut input)?;
-            input
+    let mut iter = args.iter();
+    while let Some(flag) = iter.next() {
+        let value = iter.next().ok_or("every flag needs a value")?;
+        match flag.as_str() {
+            "--prompt" if input.is_none() => input = Some(value.clone()),
+            "--prompt-file" if input.is_none() => {
+                let text = if value == "-" {
+                    let mut text = String::new();
+                    std::io::stdin().read_to_string(&mut text)?;
+                    text
+                } else {
+                    fs::read_to_string(value)?
+                };
+                input = Some(text);
+            }
+            "--fixture" if fixture.is_none() && safe_label(value) => fixture = Some(value.clone()),
+            "--run-id" if run_id.is_none() && safe_label(value) => run_id = Some(value.clone()),
+            _ => return Err(format!("unknown/duplicate/invalid flag: {flag}").into()),
         }
-        [flag, value] if flag == "--prompt-file" => fs::read_to_string(value)?,
-        _ => return Err("usage: --prompt 'request' | --prompt-file path (use - for stdin)".into()),
-    };
+    }
+    let input =
+        input.ok_or("usage: --prompt TEXT | --prompt-file PATH [--fixture NAME --run-id ID]")?;
     if input.trim().is_empty() {
         return Err("input prompt must not be empty".into());
     }
-    Ok(input)
+    if run_id.is_some() && fixture.is_none() {
+        return Err("--run-id requires --fixture".into());
+    }
+    Ok(RunArgs {
+        input,
+        fixture,
+        run_id,
+    })
 }
 
 fn render(template: &str, input: &str, state: &State) -> String {
@@ -159,17 +195,35 @@ struct Metrics<'a> {
     pricing_source: &'static str,
 }
 
-pub async fn run(backend: &impl Backend, input: &str) -> Result<(PathBuf, bool)> {
+pub async fn run(backend: &impl Backend, args: &RunArgs) -> Result<(PathBuf, bool)> {
+    let input = &args.input;
     let config_file = config_path()?;
     let root = config_file.parent().ok_or("invalid config path")?;
     let config: Config = serde_yaml::from_str(&fs::read_to_string(&config_file)?)?;
-    let dir = root.join("runs").join(backend.name());
+    let (dir, acceptance) = if let Some(fixture) = &args.fixture {
+        let acceptance = root
+            .join("benchmarks/fixtures")
+            .join(fixture)
+            .join("tests/acceptance.rs");
+        if !acceptance.is_file() {
+            return Err(format!("unknown fixture: {fixture}").into());
+        }
+        (
+            root.join("benchmarks/results")
+                .join(fixture)
+                .join(backend.name())
+                .join(args.run_id.as_deref().unwrap_or("1")),
+            Some(acceptance),
+        )
+    } else {
+        (root.join("runs").join(backend.name()), None)
+    };
     if dir.exists() {
         fs::remove_dir_all(&dir)?;
     }
     fs::create_dir_all(&dir)?;
     fs::write(dir.join("input.md"), input)?;
-    let host = ToolHost::new(dir.join("workspace"))?;
+    let host = ToolHost::new(dir.join("workspace"), acceptance.as_deref())?;
     let mut state = State::default();
     let mut trace: Vec<Step> = Vec::new();
     let mut total = Usage {

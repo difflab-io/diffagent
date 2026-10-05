@@ -103,8 +103,8 @@ mod tests {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let input = diffagent_core::input_from_args()?;
-    let (dir, passed) = diffagent_core::run(&Ax, &input).await?;
+    let args = diffagent_core::args_from_env()?;
+    let (dir, passed) = diffagent_core::run(&Ax, &args).await?;
     println!(
         "Ax: {} | artifacts: {}",
         if passed { "PASS" } else { "FAIL" },

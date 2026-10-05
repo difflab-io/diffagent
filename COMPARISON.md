@@ -1,4 +1,6 @@
-# Rig vs Ax: one real tool-calling run each
+# Rig vs Ax: initial smoke runs
+
+For the stronger two-task, eight-run comparison with external acceptance tests, see [benchmarks/SUMMARY.md](benchmarks/SUMMARY.md). This page preserves the earlier smoke-run observations, where each agent wrote its own tests.
 
 Both separate CLIs received [`examples/tic-tac-toe.md`](examples/tic-tac-toe.md), followed [`diffagent.yaml`](diffagent.yaml), used `deepseek-flash`, and had the same three host tools. These are **single observed runs**, not a benchmark or statistical evaluation. Models generated different-sized implementations and different tests.
 
@@ -19,4 +21,4 @@ See [Rig source](runs/rig/workspace/src/lib.rs), [Ax source](runs/ax/workspace/s
 
 **Accounting:** Rig reports aggregate usage from its agent runner. Ax's chat log reports uncached `prompt_tokens` separately from `cache_read_tokens`; the comparison adds them to match Rig's inclusive input count. A zero cache hit is inferred only if `total_tokens` equals prompt plus completion tokens. Costs use the [published DeepSeek Flash rates](https://api-docs.deepseek.com/quick_start/pricing/) for input cache misses, hits, and outputs; off-peak/peak rates differ. These are estimates, **not billed amounts**, and can change with model pricing and time of use.
 
-**Interpretation:** Rig used additional turns and revised source after one failing test; Ax passed its own tests on the first attempt. Rig's output is larger and includes more tests; neither test count nor PASS measures unseen requirements or code quality. To draw a framework decision, repeat with several fixed tasks, independently supplied tests, and multiple runs per backend. macOS `sandbox-exec` is defense-in-depth, not a robust multi-tenant security boundary.
+**Interpretation:** Rig used additional turns and revised source after one failing test; Ax passed its own tests on the first attempt. Rig's output is larger and includes more tests; neither test count nor PASS measures unseen requirements or code quality. The follow-up [fixed-task comparison](benchmarks/SUMMARY.md) adds independent acceptance tests and repetitions. macOS `sandbox-exec` is defense-in-depth, not a robust multi-tenant security boundary.

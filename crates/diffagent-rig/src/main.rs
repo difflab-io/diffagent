@@ -110,8 +110,8 @@ impl Backend for Rig {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let input = diffagent_core::input_from_args()?;
-    let (dir, passed) = diffagent_core::run(&Rig, &input).await?;
+    let args = diffagent_core::args_from_env()?;
+    let (dir, passed) = diffagent_core::run(&Rig, &args).await?;
     println!(
         "Rig: {} | artifacts: {}",
         if passed { "PASS" } else { "FAIL" },

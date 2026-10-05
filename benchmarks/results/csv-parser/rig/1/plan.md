@@ -1,0 +1,5 @@
+- Create a Rust library crate exposing `pub fn parse_csv_line(input: &str) -> Result<Vec<String>, String>`.
+- Implement a single-line state-machine parser: comma-separated fields, quotes only at field start, literal commas in quotes, `""` -> literal `"`, preserve all whitespace.
+- Reject invalid inputs with `Err(String)`: unclosed quote, quote inside unquoted field, non-comma characters after closing quote; handle empty input and trailing comma as empty fields.
+- Add unit tests covering valid quoting/escapes, whitespace preservation, empty/trailing fields, and all specified error cases.
+- Success criteria: `cargo test` passes; public API compiles; every specified valid case returns expected `Vec<String>`; every specified invalid case returns `Err`.

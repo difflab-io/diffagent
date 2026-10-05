@@ -1,0 +1,37 @@
+[
+  {
+    "name": "read_file",
+    "argument": "src/lib.rs",
+    "result": "// Replace this file with the requested implementation and tests.\n",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "read_file",
+    "argument": "Cargo.toml",
+    "result": "[package]\nname = \"generated-example\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (6797 bytes)",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nrunning 23 tests\n.......................\ntest result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 4 tests\n....\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n",
+    "elapsed_ms": 1082,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nrunning 23 tests\n.......................\ntest result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 4 tests\n....\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n",
+    "elapsed_ms": 54,
+    "success": true
+  }
+]

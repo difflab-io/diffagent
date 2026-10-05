@@ -1,0 +1,10 @@
+# Implement with tools
+
+You are in a fresh Rust library workspace. Use the available tools; do not merely return code as text. First call read_file with path `src/lib.rs`, then write_file with path `src/lib.rs` and the complete implementation including unit tests. Call run_task with task `test` to run the real tests. If tests fail, read_file, edit with write_file, and call run_task again. Continue until tests pass or you cannot fix them. Do not edit Cargo.toml. Finish with a short summary of what you actually changed and tested.
+
+Request:
+Implement a small Rust tic-tac-toe library. Public API: `pub fn play(board: &mut [[char; 3]; 3], row: usize, col: usize, player: char) -> Result<Option<char>, String>`. `'.'` means empty; players are `'X'` and `'O'`. Reject invalid players, out-of-bounds positions and occupied cells without changing the board. After a valid move, return `Some('X')` or `Some('O')` for a row, column or diagonal win; `Some('D')` for a full-board draw without a winner; otherwise `None`. The supplied player need not alternate. Include your own unit tests. Use the provided tools to read, write, run tests and repair failures.
+
+
+Plan:
+• Scaffold a Rust library crate exposing `pub fn play(board: &mut [[char; 3]; 3], row: usize, col: usize, player: char) -> Result<Option<char>, String>`; success: `cargo test` builds and the public API is importable. • Implement validation for invalid `player` values, `row`/`col` >= 3, and occupied cells, returning `Err(String)` without mutating the board; success: tests confirm each rejection leaves the board unchanged. • Place valid moves, then check all 3 rows, 3 columns, and 2 diagonals for a winner; success: `Some('X')`/`Some('O')` is returned for every winning line in tests. • Check draw only when no winner exists and no `'.'` remains, returning `Some('D')`; otherwise return `None`; success: tests distinguish draw, ongoing, and won games. • Add unit tests covering valid moves, non-alternating players, invalid moves, all win types, and draws, then run `cargo test` and repair failures; success: all tests pass.

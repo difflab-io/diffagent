@@ -14,6 +14,10 @@ cargo test --workspace
 
 You can pass an arbitrary request via `--prompt '...'`, or pipe it through `--prompt-file -`. The CLIs search for `diffagent.yaml` in the current directory and ancestors, then `~/.difflab/diffagent.yaml`.
 
+## Fixed-task comparison
+
+To reproduce the two-task, two-repetition comparison with independent acceptance tests, run `scripts/benchmark.sh 2`. The fixtures in [`benchmarks/fixtures/`](benchmarks/fixtures/) specify an exact Rust API and contain tests outside the model's permitted read/write tool paths. Each run is saved under `benchmarks/results/<task>/<backend>/<run>/`, including the generated source, tool calls, trace, usage, and cost estimate. See the [eight-run summary](benchmarks/SUMMARY.md), [provisional decision](benchmarks/DECISION.md), and machine-readable [`summary.json`](benchmarks/summary.json). This still does not make generated code safe to run outside an isolated environment.
+
 ## What runs
 
 1. **plan**: One model call produces a short plan using `{{input}}`.
@@ -22,6 +26,6 @@ You can pass an arbitrary request via `--prompt '...'`, or pipe it through `--pr
 
 Every run replaces only its own `runs/<backend>/` directory. Compare the actual [`Rig source`](runs/rig/workspace/src/lib.rs) and [`Ax source`](runs/ax/workspace/src/lib.rs), [tool-call histories](runs/rig/tools.json), per-step [`traces`](runs/rig/trace.json), and [`metrics`](runs/rig/metrics.json). The Ax run also saves normalized per-call [`usage records`](runs/ax/usage-agent.json). `*.prompt.md` shows the exact input to each model stage. [`COMPARISON.md`](COMPARISON.md) summarizes the saved runs.
 
-Tokens count all model calls, including tool loops. Cache-hit tokens are included in **input** tokens. Cost is an **estimate**, not billing: `metrics.json` applies DeepSeek's published `deepseek-flash` off-peak and peak rates to reported input, cache-hit and output tokens. See [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/). The two outputs and timings vary from run to run; this is one example per backend, not a controlled benchmark. Passing tests authored by the model does not establish that all user requirements are met.
+Tokens count all model calls, including tool loops. Cache-hit tokens are included in **input** tokens. Cost is an **estimate**, not billing: `metrics.json` applies DeepSeek's published `deepseek-flash` off-peak and peak rates to reported input, cache-hit and output tokens. See [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/). The outputs and timings vary from run to run; even the repeated fixed-task runs are a small sample, not a controlled performance benchmark. Passing tests authored by the model does not establish that all user requirements are met.
 
 This intentionally narrow tool surface does not yet provide general shell commands, multi-file projects, arbitrary graph nodes, session persistence, or Claude Code/Cursor/Pi adapters. Test execution has OS- and threat-model limitations; do not deploy the POC as a general-purpose autonomous coder.

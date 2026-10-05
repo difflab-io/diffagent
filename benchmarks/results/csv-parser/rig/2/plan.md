@@ -1,0 +1,5 @@
+- Create a Rust library crate exposing `pub fn parse_csv_line(input: &str) -> Result<Vec<String>, String>` in `src/lib.rs`.
+- Implement a character-by-character state machine for unquoted, quoted, and post-closing-quote field states, preserving whitespace and handling empty input/trailing commas correctly.
+- Return `Err(String)` for unclosed quotes, quotes in unquoted fields, and any non-comma character after a closing quote.
+- Add unit tests covering normal fields, empty input, trailing commas, quoted commas, doubled quotes, whitespace preservation, and every specified error case.
+- Run `cargo test`; success means the crate compiles, all tests pass, and observed outputs match the required API and parsing rules.

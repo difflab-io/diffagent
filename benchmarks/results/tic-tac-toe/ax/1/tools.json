@@ -1,0 +1,51 @@
+[
+  {
+    "name": "read_file",
+    "argument": "src/lib.rs",
+    "result": "// Replace this file with the requested implementation and tests.\n",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "read_file",
+    "argument": "Cargo.toml",
+    "result": "[package]\nname = \"generated-example\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (6030 bytes)",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nwarning: value assigned to `expected` is never read\n   --> src/lib.rs:188:28\n    |\n188 |         let mut expected = Ok(None);\n    |                            ^^^^^^^^ this value is reassigned later and never used\n189 |         // Two X moves in a row.\n190 |         expected = play(&mut board, 0, 0, 'X');\n    |         -------- `expected` is overwritten here before the previous value is read\n    |\n    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default\n\n\nrunning 11 tests\n...........\ntest result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 4 tests\n....\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nFailed to spawn \"/Users/siddharthkapoor/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc\": Os { code: 1, kind: PermissionDenied, message: \"Operation not permitted\" }\n\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s\n\nall doctests ran in 0.22s; merged doctests compilation took 0.00s\n",
+    "elapsed_ms": 1296,
+    "success": true
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (5895 bytes)",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nrunning 11 tests\n...........\ntest result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 4 tests\n....\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nFailed to spawn \"/Users/siddharthkapoor/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc\": Os { code: 1, kind: PermissionDenied, message: \"Operation not permitted\" }\n\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s\n\nall doctests ran in 0.22s; merged doctests compilation took 0.00s\n",
+    "elapsed_ms": 784,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nrunning 11 tests\n...........\ntest result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 4 tests\n....\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nFailed to spawn \"/Users/siddharthkapoor/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc\": Os { code: 1, kind: PermissionDenied, message: \"Operation not permitted\" }\n\nrunning 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s\n\nall doctests ran in 0.26s; merged doctests compilation took 0.00s\n",
+    "elapsed_ms": 311,
+    "success": true
+  }
+]

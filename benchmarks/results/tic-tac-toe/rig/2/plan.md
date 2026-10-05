@@ -1,0 +1,5 @@
+- Read/inspect the workspace, then create or update a Rust library crate with `Cargo.toml` and `src/lib.rs`; success: the crate exposes the required public `play` function.
+- Implement validation for `player` (`'X'` or `'O'`), `row`/`col` in `0..3`, and empty `'.'` cells; success: invalid moves return `Err(String)` and leave the board unchanged.
+- Apply valid moves and detect wins across rows, columns, and both diagonals; success: returns `Some('X')`/`Some('O')` on win, `Some('D')` on full-board draw, and `None` otherwise.
+- Add unit tests covering valid moves, invalid player, out-of-bounds, occupied cells, all win lines, draws, and non-alternating players; success: tests assert both return values and resulting board state.
+- Run `cargo test`, repair any failures, and rerun until green; success: all tests pass and the required API behaves exactly as specified.

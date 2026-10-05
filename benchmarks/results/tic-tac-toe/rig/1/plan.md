@@ -1,0 +1,5 @@
+- Read the existing crate structure (`Cargo.toml`, `src/lib.rs`) and confirm the test command is `cargo test`.
+- Implement `pub fn play(...)` with validation for `'X'`/`'O'`, bounds `row < 3 && col < 3`, and `'.'`-only occupancy; invalid calls return `Err` without mutating the board.
+- After a valid move, check the affected row, column, and both diagonals for a win; otherwise return `Some('D')` only when the board is full, else `Ok(None)`.
+- Add unit tests covering valid moves, invalid player, out-of-bounds, occupied cell/board unchanged, X/O wins by row/column/diagonal, draw, and non-alternating players.
+- Run `cargo test`; success means the public signature matches, all invalid cases leave the board unchanged, all win/draw/none outcomes match the spec, and every test passes.

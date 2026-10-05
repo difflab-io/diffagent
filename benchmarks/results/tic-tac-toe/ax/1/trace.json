@@ -1,0 +1,47 @@
+[
+  {
+    "node": "plan",
+    "backend": "ax",
+    "model": "deepseek-flash",
+    "elapsed_ms": 3824,
+    "output": "plan.md",
+    "next": "implement",
+    "usage": {
+      "input_tokens": 364,
+      "output_tokens": 599,
+      "cached_input_tokens": 0,
+      "model_calls": 1
+    },
+    "tool_calls": 0
+  },
+  {
+    "node": "implement",
+    "backend": "ax",
+    "model": "deepseek-flash",
+    "elapsed_ms": 20861,
+    "output": "implement.md",
+    "next": "evaluate",
+    "usage": {
+      "input_tokens": 21716,
+      "output_tokens": 4564,
+      "cached_input_tokens": 19712,
+      "model_calls": 6
+    },
+    "tool_calls": 6
+  },
+  {
+    "node": "evaluate",
+    "backend": "ax",
+    "model": "deepseek-flash",
+    "elapsed_ms": 311,
+    "output": "evaluate.md",
+    "next": "end",
+    "usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "model_calls": 0
+    },
+    "tool_calls": 1
+  }
+]

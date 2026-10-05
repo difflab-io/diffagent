@@ -1,0 +1,58 @@
+[
+  {
+    "name": "read_file",
+    "argument": "src/lib.rs",
+    "result": "// Replace this file with the requested implementation and tests.\n",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "read_file",
+    "argument": "Cargo.toml",
+    "result": "[package]\nname = \"generated-example\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (7628 bytes)",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "FAIL:\nrunning 14 tests\n.......... 10/14\ntests::full_board_draw_detected_for_second_player_move --- FAILED\n.. 13/14\ntests::win_takes_priority_and_does_not_require_full_board --- FAILED\n\nfailures:\n\n---- tests::full_board_draw_detected_for_second_player_move stdout ----\n\nthread 'tests::full_board_draw_detected_for_second_player_move' (82566864) panicked at src/lib.rs:233:9:\nassertion `left == right` failed\n  left: Ok(Some('X'))\n right: Ok(Some('D'))\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n---- tests::win_takes_priority_and_does_not_require_full_board stdout ----\n\nthread 'tests::win_takes_priority_and_does_not_require_full_board' (82566869) panicked at src/lib.rs:194:9:\nassertion `left == right` failed\n  left: Ok(None)\n right: Ok(Some('X'))\n\n\nfailures:\n    tests::full_board_draw_detected_for_second_player_move\n    tests::win_takes_priority_and_does_not_require_full_board\n\ntest result: FAILED. 12 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\nerror: test failed, to rerun pass `--lib`\n",
+    "elapsed_ms": 923,
+    "success": false
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (7310 bytes)",
+    "elapsed_ms": 1,
+    "success": true
+  },
+  {
+    "name": "write_file",
+    "argument": "src/lib.rs",
+    "result": "wrote src/lib.rs (7213 bytes)",
+    "elapsed_ms": 0,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nrunning 14 tests\n..............\ntest result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 4 tests\n....\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n",
+    "elapsed_ms": 779,
+    "success": true
+  },
+  {
+    "name": "run_task",
+    "argument": "test",
+    "result": "PASS:\nrunning 14 tests\n..............\ntest result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 4 tests\n....\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n",
+    "elapsed_ms": 51,
+    "success": true
+  }
+]

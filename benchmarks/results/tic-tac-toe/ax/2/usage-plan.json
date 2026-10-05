@@ -1,0 +1,9 @@
+[
+  {
+    "prompt_tokens": 236,
+    "completion_tokens": 682,
+    "total_tokens": 1046,
+    "reasoning_tokens": 438,
+    "cache_read_tokens": 128
+  }
+]

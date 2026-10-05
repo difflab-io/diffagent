@@ -25,7 +25,7 @@ pub struct ToolEvent {
 }
 
 impl ToolHost {
-    pub fn new(workspace: PathBuf) -> io::Result<Self> {
+    pub fn new(workspace: PathBuf, acceptance: Option<&Path>) -> io::Result<Self> {
         fs::create_dir_all(workspace.join("src"))?;
         fs::write(
             workspace.join("Cargo.toml"),
@@ -35,6 +35,10 @@ impl ToolHost {
             workspace.join("src/lib.rs"),
             "// Replace this file with the requested implementation and tests.\n",
         )?;
+        if let Some(source) = acceptance {
+            fs::create_dir_all(workspace.join("tests"))?;
+            fs::copy(source, workspace.join("tests/acceptance.rs"))?;
+        }
         Ok(Self {
             workspace,
             events: Arc::new(Mutex::new(Vec::new())),
@@ -219,7 +223,7 @@ mod tests {
     fn executes_allowlisted_tests_in_sandbox() {
         let dir =
             std::env::temp_dir().join(format!("diffagent-sandbox-test-{}", std::process::id()));
-        let host = ToolHost::new(dir.clone()).unwrap();
+        let host = ToolHost::new(dir.clone(), None).unwrap();
         host.write_file(
             "src/lib.rs",
             "#[test] fn works() { assert_eq!(2 + 2, 4); }\n",
@@ -231,9 +235,23 @@ mod tests {
     }
 
     #[test]
+    fn seeds_acceptance_tests_outside_the_model_tool_surface() {
+        let dir =
+            std::env::temp_dir().join(format!("diffagent-acceptance-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let fixture = dir.join("fixture.rs");
+        fs::write(&fixture, "#[test] fn external() { assert!(true); }\n").unwrap();
+        let host = ToolHost::new(dir.join("workspace"), Some(&fixture)).unwrap();
+        assert!(host.workspace().join("tests/acceptance.rs").is_file());
+        assert!(host.read_file("tests/acceptance.rs").is_err());
+        assert!(host.write_file("tests/acceptance.rs", "").is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn rejects_traversal_and_arbitrary_tasks() {
         let dir = std::env::temp_dir().join(format!("diffagent-tool-test-{}", std::process::id()));
-        let host = ToolHost::new(dir.clone()).unwrap();
+        let host = ToolHost::new(dir.clone(), None).unwrap();
         assert!(host.write_file("../outside", "x").is_err());
         assert!(host.read_file("../../.ssh/id_rsa").is_err());
         assert!(host.run_task("rm -rf /").is_err());

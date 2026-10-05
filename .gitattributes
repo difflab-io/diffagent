@@ -1,0 +1,2 @@
+# Preserve raw generated prompts and model output for reproducibility.
+benchmarks/results/** -whitespace
