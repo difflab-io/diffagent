@@ -1,0 +1,9 @@
+[package]
+name = "diffagent-rig"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+diffagent-core = { path = "../diffagent-core" }
+rig = "=0.43.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

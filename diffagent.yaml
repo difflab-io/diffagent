@@ -1,0 +1,19 @@
+defaults:
+  model: deepseek-chat
+graph:
+  start: plan
+  max_updates: 1
+  nodes:
+    plan:
+      prompt: prompts/plan.md
+      next: implement
+    implement:
+      prompt: prompts/implement.md
+      next: evaluate
+    evaluate:
+      prompt: prompts/evaluate.md
+      on_pass: end
+      on_fail: update
+    update:
+      prompt: prompts/update.md
+      next: evaluate

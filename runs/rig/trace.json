@@ -1,0 +1,26 @@
+[
+  {
+    "node": "plan",
+    "backend": "rig",
+    "model": "deepseek-chat",
+    "elapsed_ms": 1617,
+    "output": "plan.md",
+    "next": "implement"
+  },
+  {
+    "node": "implement",
+    "backend": "rig",
+    "model": "deepseek-chat",
+    "elapsed_ms": 6121,
+    "output": "implement.md",
+    "next": "evaluate"
+  },
+  {
+    "node": "evaluate",
+    "backend": "rig",
+    "model": "deepseek-chat",
+    "elapsed_ms": 782,
+    "output": "evaluate.md",
+    "next": "end"
+  }
+]
