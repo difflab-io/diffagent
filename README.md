@@ -14,15 +14,33 @@ The smallest useful result is a runnable chat and flow for each SDK, followed by
 
 ## Setup and tasks
 
-Run commands from the repository root. This checkout passed with Rust 1.98.1, Cargo 1.98.1, and mise 2026.9.4. Install the Rust toolchain and mise before running the tasks. The optional Go example needs a Go toolchain. Generated-code test tasks need macOS `sandbox-exec`; the sandbox is defense in depth, not isolation for hostile code.
+Run commands from the repository root on macOS. Install [mise](https://mise.jdx.dev/) first; `mise install` installs the pinned Rust 1.98.1 (including Cargo), Python 3.12.13, and Go 1.25.14 toolchains declared in [`mise.toml`](mise.toml). Rust dependencies are locked in `Cargo.lock` and download on the first build. The Python benchmark helpers use only the standard library, and the bundled Go example uses Go's standard library. Bash and `/usr/bin/sandbox-exec` come with macOS, not mise; the sandbox is defense in depth, not isolation for hostile code. No local database, Node.js, or Lua installation is required to run the PoC.
 
-Set `DEEPSEEK_API_KEY` in your environment for chat or paid evaluations. Do not commit the key. Build, test, and check tasks do not call the model provider. Each evaluation task asks for confirmation and writes a new set under `benchmarks/results-next/`, which Git ignores without deleting the results.
+```sh
+mise install
+mise run build
+mise run test
+# For chat and paid evaluations, first set DEEPSEEK_API_KEY in your shell.
+mise run preflight                   # checks tools, sandbox, and key presence; no API call
+mise run rig:chat                    # or ax:chat, adk:chat
+mise run rig:eval:tic-tac-toe       # paid; asks for confirmation
+```
+
+A DeepSeek account with API access and network connectivity is required for chat and evaluations. Set `DEEPSEEK_API_KEY` in your environment, not in a file in this repository; do not commit it. The key is not forwarded to agent-run mise tasks. `mise run preflight` checks only that the key is present, not that it works. Build, test, check, and preflight do not call the model provider. Each evaluation task asks for confirmation and writes a new set under `benchmarks/results-next/`, which Git ignores without deleting the results. Historical `benchmarks/results/` files also remain on disk; Git ignore rules do not untrack files already committed.
+
+| Environment variable | When needed | Effect |
+| --- | --- | --- |
+| `DEEPSEEK_API_KEY` | Required for chat and evaluations. | DeepSeek model calls; never store it in the repository. |
+| `DIFFAGENT_WORKSPACE` | Optional for `scripts/chat.sh` and chat mise tasks. | Absolute path to an existing workspace; defaults to the directory where the chat command starts. |
+| `DIFFAGENT_RUN_SET` | Optional for `scripts/benchmark-flow.sh`; mise evaluation tasks set it automatically. | Unique result-set name containing only letters, digits, `_`, or `-`; the script otherwise uses `current` and refuses to overwrite a run. |
+| `DIFFAGENT_FLOW_TIMEOUT_SECS` | Optional for flow benchmarks. | Positive integer timeout per flow, default `240` seconds. |
 
 | Task | Command | Purpose | Observed result |
 | --- | --- | --- | --- |
-| Build | `mise run build` | Compile the workspace. | Passed in this checkout. |
-| Test | `mise run test` | Run workspace tests without model calls. | Passed in this checkout. |
-| Check | `mise run check` | Check formatting, tests, and Clippy. | Passed in this checkout. |
+| Build | `mise run build` | Compile the workspace. | Passed with pinned tools. |
+| Test | `mise run test` | Run Rust workspace and Go example tests without model calls. | Passed with pinned tools. |
+| Check | `mise run check` | Check Rust formatting, Rust and Go tests, and Clippy. | Passed with pinned tools. |
+| Preflight | `mise run preflight` | Check runtime tools, macOS sandbox, and key presence without model calls. | Passed with a placeholder key; live key validity remains unverified. |
 | Run Rig | `mise run rig:chat` | Open Rig chat. | CLI startup passed in an earlier PTY smoke test; no live chat completion verified here. |
 | Run Ax | `mise run ax:chat` | Open Ax chat. | CLI startup passed in an earlier PTY smoke test; no live chat completion verified here. |
 | Run ADK | `mise run adk:chat` | Open ADK chat. | CLI startup passed in an earlier PTY smoke test; no live chat completion verified here. |

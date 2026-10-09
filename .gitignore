@@ -14,7 +14,7 @@
 **/task-output.txt
 **/workspace/tmp/
 **/__pycache__/
-# New benchmark runs stay local; retain historical results already in Git.
+# Benchmark runs stay local; already-tracked historical files remain tracked.
+/benchmarks/results/
 /benchmarks/results-next/
-benchmarks/results/**/smoke-*/
 runs/*/chat/

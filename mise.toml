@@ -3,6 +3,37 @@
 # Chat and paid evaluations require DEEPSEEK_API_KEY in the environment.
 # Generated-code tests require macOS sandbox-exec.
 # Evaluations create fresh sets under benchmarks/results-next, never overwrite history.
+# Install pinned tools with `mise install` before running tasks (especially sandboxed tasks).
+# macOS /usr/bin/sandbox-exec and a DeepSeek API key are external requirements.
+
+[tools]
+rust = "1.98.1"
+python = "3.12.13"
+go = "1.25.14"
+
+[tasks.preflight]
+description = "Check runtime requirements without calling the model"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$(uname -s)" != Darwin || ! -x /usr/bin/sandbox-exec ]]; then
+  echo 'The PoC requires macOS with /usr/bin/sandbox-exec for generated-code tasks.' >&2
+  exit 1
+fi
+if ! /usr/bin/sandbox-exec -p '(version 1)(allow default)' /usr/bin/true; then
+  echo 'sandbox-exec is present but could not start a process.' >&2
+  exit 1
+fi
+if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+  echo 'Set DEEPSEEK_API_KEY in your environment before chat or evaluations.' >&2
+  exit 1
+fi
+cargo fmt --version >/dev/null
+cargo clippy --version >/dev/null
+python3 --version
+go version
+echo 'PoC tools and environment are ready; API key validity was not checked.'
+'''
 
 [tasks."rig:chat"]
 description = "Open Rig chat in the launch directory"
@@ -56,9 +87,9 @@ description = "Build all SDK backends and shared crates without model calls"
 run = "cargo build --workspace"
 
 [tasks.test]
-description = "Run all workspace tests without model calls"
-run = "cargo test --workspace"
+description = "Run Rust workspace and Go example tests without model calls"
+run = "cargo test --workspace && go -C examples test ./..."
 
 [tasks.check]
-description = "Check workspace formatting, tests, and Clippy"
-run = "cargo fmt --all -- --check && cargo test --workspace && cargo clippy --workspace -- -D warnings"
+description = "Check Rust formatting, Rust and Go tests, and Clippy"
+run = "cargo fmt --all -- --check && cargo test --workspace && go -C examples test ./... && cargo clippy --workspace -- -D warnings"
