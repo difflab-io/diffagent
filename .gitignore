@@ -1,5 +1,20 @@
 **/target/
+
+# Local tool state, scratch files, and environment secrets.
+/.local/
+/tmp/
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.DS_Store
+
 **/sandbox.sb
 **/task-output.txt
 **/workspace/tmp/
 **/__pycache__/
+# New benchmark runs stay local; retain historical results already in Git.
+/benchmarks/results-next/
+benchmarks/results/**/smoke-*/
+runs/*/chat/

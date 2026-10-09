@@ -1,6 +1,8 @@
 use generated_example::play;
 
-fn empty() -> [[char; 3]; 3] { [['.'; 3]; 3] }
+fn empty() -> [[char; 3]; 3] {
+    [['.'; 3]; 3]
+}
 
 #[test]
 fn legal_move_and_no_winner() {

@@ -10,18 +10,24 @@ fi
 
 cd "$(dirname "$0")/.." || exit 1
 cargo build --workspace || exit $?
+failures=0
 for task in tic-tac-toe csv-parser; do
   for i in $(seq 1 "$repetitions"); do
-    for backend in rig ax; do
-      echo "== $task / $backend / run $i =="
+    for backend in rig ax adk; do
+      echo "== $task / $backend / full agent run $i =="
       cargo run --quiet -p "diffagent-$backend" -- \
-        --fixture "$task" --run-id "$i" \
+        --fixture "$task" --run-id "agent-$i" --agent implement=full \
         --prompt-file "benchmarks/fixtures/$task/prompt.md"
       status=$?
-      mkdir -p "benchmarks/results/$task/$backend/$i"
-      printf '%s\n' "$status" > "benchmarks/results/$task/$backend/$i/exit-code.txt"
+      mkdir -p "benchmarks/results/$task/$backend/agent-$i"
+      printf '%s\n' "$status" > "benchmarks/results/$task/$backend/agent-$i/exit-code.txt"
       echo "exit=$status"
+      if (( status != 0 )); then failures=$((failures + 1)); fi
     done
   done
 done
-python3 scripts/summarize.py "$repetitions"
+python3 scripts/summarize.py "$repetitions" --agents || exit $?
+if (( failures != 0 )); then
+  echo "$failures benchmark runs failed; see benchmarks/AGENTS.md" >&2
+  exit 1
+fi

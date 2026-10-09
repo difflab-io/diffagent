@@ -1,0 +1,22 @@
+version: 1
+name: coding
+model: deepseek-flash
+system_prompt: prompts/next-chat.md
+skills:
+  - skills/coding
+flows:
+  - flows/implement.yaml
+tools:
+  read:
+    - '**'
+  write:
+    - '**'
+  mise_tasks: true
+  max_write_bytes: 262144
+  tasks:
+    test:
+      argv: [cargo, test, --offline]
+      timeout_secs: 45
+    gotest:
+      argv: [go, -C, examples, test, ./...]
+      timeout_secs: 120

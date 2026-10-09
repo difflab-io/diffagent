@@ -1,13 +1,16 @@
 defaults:
   model: deepseek-flash
+  agent: full
 graph:
   start: plan
   max_updates: 1
   nodes:
     plan:
+      agent: light
       prompt: prompts/plan.md
       next: implement
     implement:
+      agent: full
       prompt: prompts/implement.md
       next: evaluate
     evaluate:
@@ -15,5 +18,6 @@ graph:
       on_pass: end
       on_fail: update
     update:
+      agent: full
       prompt: prompts/update.md
       next: evaluate

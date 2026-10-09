@@ -1,6 +1,8 @@
 use generated_example::parse_csv_line;
 
-fn fields(input: &str) -> Vec<String> { parse_csv_line(input).unwrap() }
+fn fields(input: &str) -> Vec<String> {
+    parse_csv_line(input).unwrap()
+}
 
 #[test]
 fn simple_and_empty_fields() {

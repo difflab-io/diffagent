@@ -1,0 +1,64 @@
+# Run from repository root with `mise run <task>`.
+# Build, test, and check never call the model provider.
+# Chat and paid evaluations require DEEPSEEK_API_KEY in the environment.
+# Generated-code tests require macOS sandbox-exec.
+# Evaluations create fresh sets under benchmarks/results-next, never overwrite history.
+
+[tasks."rig:chat"]
+description = "Open Rig chat in the launch directory"
+run = "bash scripts/chat.sh rig"
+
+[tasks."ax:chat"]
+description = "Open Ax chat in the launch directory"
+run = "bash scripts/chat.sh ax"
+
+[tasks."adk:chat"]
+description = "Open ADK chat in the launch directory"
+run = "bash scripts/chat.sh adk"
+
+[tasks."rig:eval:tic-tac-toe"]
+description = "Evaluate Rig flow on tic-tac-toe once (paid)"
+confirm = "Run a paid Rig tic-tac-toe evaluation?"
+run = "DIFFAGENT_RUN_SET=smoke-$(date +%Y%m%d-%H%M%S) bash scripts/benchmark-flow.sh 1 rig tic-tac-toe"
+
+[tasks."rig:eval:csv-parser"]
+description = "Evaluate Rig flow on CSV parsing once (paid)"
+confirm = "Run a paid Rig CSV-parser evaluation?"
+run = "DIFFAGENT_RUN_SET=smoke-$(date +%Y%m%d-%H%M%S) bash scripts/benchmark-flow.sh 1 rig csv-parser"
+
+[tasks."ax:eval:tic-tac-toe"]
+description = "Evaluate Ax flow on tic-tac-toe once (paid)"
+confirm = "Run a paid Ax tic-tac-toe evaluation?"
+run = "DIFFAGENT_RUN_SET=smoke-$(date +%Y%m%d-%H%M%S) bash scripts/benchmark-flow.sh 1 ax tic-tac-toe"
+
+[tasks."ax:eval:csv-parser"]
+description = "Evaluate Ax flow on CSV parsing once (paid)"
+confirm = "Run a paid Ax CSV-parser evaluation?"
+run = "DIFFAGENT_RUN_SET=smoke-$(date +%Y%m%d-%H%M%S) bash scripts/benchmark-flow.sh 1 ax csv-parser"
+
+[tasks."adk:eval:tic-tac-toe"]
+description = "Evaluate ADK flow on tic-tac-toe once (paid)"
+confirm = "Run a paid ADK tic-tac-toe evaluation?"
+run = "DIFFAGENT_RUN_SET=smoke-$(date +%Y%m%d-%H%M%S) bash scripts/benchmark-flow.sh 1 adk tic-tac-toe"
+
+[tasks."adk:eval:csv-parser"]
+description = "Evaluate ADK flow on CSV parsing once (paid)"
+confirm = "Run a paid ADK CSV-parser evaluation?"
+run = "DIFFAGENT_RUN_SET=smoke-$(date +%Y%m%d-%H%M%S) bash scripts/benchmark-flow.sh 1 adk csv-parser"
+
+[tasks."all:eval"]
+description = "Run 12 paid flow evaluations in a new result set"
+confirm = "Run 12 paid flow evaluations (each capped at 240 seconds)?"
+run = "DIFFAGENT_RUN_SET=parity-$(date +%Y%m%d-%H%M%S) bash scripts/benchmark-flow.sh 2"
+
+[tasks.build]
+description = "Build all SDK backends and shared crates without model calls"
+run = "cargo build --workspace"
+
+[tasks.test]
+description = "Run all workspace tests without model calls"
+run = "cargo test --workspace"
+
+[tasks.check]
+description = "Check workspace formatting, tests, and Clippy"
+run = "cargo fmt --all -- --check && cargo test --workspace && cargo clippy --workspace -- -D warnings"

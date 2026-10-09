@@ -1,0 +1,31 @@
+version: 1
+name: implement
+
+description: Implement and test a change in the configured workspace.
+parameters:
+  request:
+    type: string
+    required: true
+start: plan
+max_steps: 12
+nodes:
+  plan:
+    kind: agent
+    model: deepseek-flash
+    prompt: prompts/plan.md
+    next: implement
+  implement:
+    kind: agent
+    model: deepseek-flash
+    prompt: prompts/implement.md
+    next: evaluate
+  evaluate:
+    kind: task
+    task: test
+    on_pass: end
+    on_fail: update
+  update:
+    kind: agent
+    model: deepseek-flash
+    prompt: prompts/update.md
+    next: evaluate

@@ -1,3 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/diffagent-core", "crates/diffagent-rig", "crates/diffagent-ax"]
+members = [
+  "crates/diffagent-rig",
+  "crates/diffagent-ax",
+  "crates/diffagent-adk",
+  "crates/diffagent-core",
+  "crates/diffagent-tui",
+]

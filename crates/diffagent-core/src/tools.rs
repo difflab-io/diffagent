@@ -1,260 +1,555 @@
+//! Framework-neutral, workspace-scoped tool policy and side effects.
+//! A preview is a complete proposed write, not a simulated stream of tokens.
+
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
+
 use std::{
-    fs, io,
+    collections::VecDeque,
+    fs::{self, File},
+    io::{self, Read, Write},
     path::{Component, Path, PathBuf},
     process::{Command, Stdio},
     sync::{Arc, Mutex},
+    thread,
     time::{Duration, Instant},
 };
 
+use crate::spec::ToolSpec;
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::Serialize;
+use tempfile::NamedTempFile;
 use wait_timeout::ChildExt;
+
+const MAX_READ_BYTES: u64 = 32 * 1024;
+const MAX_OUTPUT_BYTES: usize = 8 * 1024;
+const MAX_EVENTS: usize = 2048;
+
+pub type Result<T> = std::result::Result<T, ToolError>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ToolError {
+    #[error("denied: {0}")]
+    Denied(String),
+    #[error("invalid policy: {0}")]
+    Policy(String),
+    #[error("preview rejected: {0}")]
+    Preview(String),
+    #[error("task execution requires macOS sandbox-exec")]
+    SandboxUnavailable,
+    #[error("task timed out after {0}s")]
+    Timeout(u64),
+    #[error(transparent)]
+    Io(#[from] io::Error),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolAction {
+    Read,
+    Write,
+    List,
+    Task,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ToolEvent {
+    pub action: ToolAction,
+    pub argument: String,
+    pub success: bool,
+    pub summary: String,
+    pub elapsed_ms: u128,
+}
+
+pub struct WriteProposal<'a> {
+    pub relative: &'a str,
+    pub original: Option<&'a str>,
+    pub content: &'a [u8],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct WriteReceipt {
+    pub relative: String,
+    pub bytes: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskOutput {
+    pub success: bool,
+    pub exit_code: Option<i32>,
+    pub output: String,
+    pub truncated: bool,
+}
 
 #[derive(Clone)]
 pub struct ToolHost {
     workspace: PathBuf,
-    events: Arc<Mutex<Vec<ToolEvent>>>,
-}
-
-#[derive(Clone, Serialize)]
-pub struct ToolEvent {
-    pub name: String,
-    pub argument: String,
-    pub result: String,
-    pub elapsed_ms: u128,
-    pub success: bool,
+    policy: ToolSpec,
+    read: GlobSet,
+    write: GlobSet,
+    events: Arc<Mutex<VecDeque<ToolEvent>>>,
 }
 
 impl ToolHost {
-    pub fn new(workspace: PathBuf, acceptance: Option<&Path>) -> io::Result<Self> {
-        fs::create_dir_all(workspace.join("src"))?;
-        fs::write(
-            workspace.join("Cargo.toml"),
-            "[package]\nname = \"generated-example\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
-        )?;
-        fs::write(
-            workspace.join("src/lib.rs"),
-            "// Replace this file with the requested implementation and tests.\n",
-        )?;
-        if let Some(source) = acceptance {
-            fs::create_dir_all(workspace.join("tests"))?;
-            fs::copy(source, workspace.join("tests/acceptance.rs"))?;
+    pub fn new(workspace: &Path, policy: ToolSpec) -> Result<Self> {
+        if !workspace.is_dir() {
+            return Err(ToolError::Policy(
+                "workspace must exist as a directory".into(),
+            ));
+        }
+        let workspace = workspace.canonicalize()?;
+        if policy.max_write_bytes == 0 || policy.max_write_bytes > 1024 * 1024 {
+            return Err(ToolError::Policy(
+                "max_write_bytes must be 1..=1048576".into(),
+            ));
+        }
+        for (name, task) in &policy.tasks {
+            if name.is_empty()
+                || !name
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+                || task.argv.is_empty()
+                || task.argv.iter().any(|s| s.is_empty() || s.contains('\0'))
+                || !(1..=300).contains(&task.timeout_secs)
+                || is_shell(&task.argv[0])
+                || Path::new(&task.argv[0])
+                    .components()
+                    .any(|c| matches!(c, Component::ParentDir))
+            {
+                return Err(ToolError::Policy(format!("invalid task: {name}")));
+            }
         }
         Ok(Self {
             workspace,
-            events: Arc::new(Mutex::new(Vec::new())),
+            read: compile_globs(&policy.read)?,
+            write: compile_globs(&policy.write)?,
+            policy,
+            events: Arc::new(Mutex::new(VecDeque::new())),
         })
     }
 
-    pub fn events(&self) -> Vec<ToolEvent> {
-        self.events.lock().unwrap().clone()
-    }
     pub fn workspace(&self) -> &Path {
         &self.workspace
     }
+    pub fn events(&self) -> Vec<ToolEvent> {
+        self.events.lock().unwrap().iter().cloned().collect()
+    }
 
-    fn path(&self, requested: &str, writable: bool) -> io::Result<PathBuf> {
-        let relative = Path::new(requested);
-        if relative
-            .components()
-            .any(|c| !matches!(c, Component::Normal(_)))
-            || relative.as_os_str().is_empty()
+    fn record<T>(
+        &self,
+        action: ToolAction,
+        argument: &str,
+        start: Instant,
+        result: &Result<T>,
+        summary: &str,
+    ) {
+        let event = ToolEvent {
+            action,
+            argument: argument.chars().take(256).collect(),
+            success: result.is_ok(),
+            summary: if result.is_ok() {
+                summary.into()
+            } else {
+                result
+                    .as_ref()
+                    .err()
+                    .unwrap()
+                    .to_string()
+                    .chars()
+                    .take(512)
+                    .collect()
+            },
+            elapsed_ms: start.elapsed().as_millis(),
+        };
+        let mut events = self.events.lock().unwrap();
+        if events.len() == MAX_EVENTS {
+            events.pop_front();
+        }
+        events.push_back(event);
+    }
+
+    /// Resolve an allowed path, checking *every* existing component for symlinks.
+    /// No implicit directory creation: the parent must already exist.
+    fn path(&self, relative: &str, writable: bool) -> Result<PathBuf> {
+        let rel = Path::new(relative);
+        if rel.as_os_str().is_empty()
+            || relative
+                .split('/')
+                .any(|part| part.is_empty() || part == "." || part == "..")
+            || rel.components().any(|c| !matches!(c, Component::Normal(_)))
         {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "only relative paths without traversal are allowed",
+            return Err(ToolError::Denied(
+                "expected a relative path without traversal".into(),
             ));
         }
-        if writable && requested != "src/lib.rs" {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "only src/lib.rs can be written",
-            ));
+        if !if writable { &self.write } else { &self.read }.is_match(relative) {
+            return Err(ToolError::Denied(format!(
+                "path not allowlisted: {relative}"
+            )));
         }
-        if !matches!(requested, "src/lib.rs" | "Cargo.toml") {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "only src/lib.rs and Cargo.toml can be read",
-            ));
-        }
-        // A generated test may modify the workspace. Do not let a subsequent
-        // host-side tool follow a symlink out of it.
-        if requested.starts_with("src/")
-            && fs::symlink_metadata(self.workspace.join("src"))?
-                .file_type()
-                .is_symlink()
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "src is a symlink",
-            ));
-        }
-        let path = self.workspace.join(relative);
-        if fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "file is a symlink",
-            ));
+        let mut path = self.workspace.clone();
+        let count = rel.components().count();
+        for (index, component) in rel.components().enumerate() {
+            path.push(component);
+            match fs::symlink_metadata(&path) {
+                Ok(meta) => {
+                    if meta.file_type().is_symlink() {
+                        return Err(ToolError::Denied("symlink traversal is forbidden".into()));
+                    }
+                    if index + 1 < count && !meta.is_dir() {
+                        return Err(ToolError::Denied("parent is not a directory".into()));
+                    }
+                }
+                Err(err)
+                    if err.kind() == io::ErrorKind::NotFound && writable && index + 1 == count => {}
+                Err(err) => return Err(err.into()),
+            }
         }
         Ok(path)
     }
 
-    fn record(&self, name: &str, argument: &str, start: Instant, result: &io::Result<String>) {
-        self.events.lock().unwrap().push(ToolEvent {
-            name: name.into(),
-            argument: argument.into(),
-            elapsed_ms: start.elapsed().as_millis(),
-            success: result
-                .as_ref()
-                .is_ok_and(|s| name != "run_task" || s.starts_with("PASS:")),
-            result: match result {
-                Ok(s) => s.chars().take(4000).collect(),
-                Err(e) => e.to_string(),
-            },
-        });
-    }
-
-    pub fn read_file(&self, path: &str) -> io::Result<String> {
+    pub fn read_file(&self, relative: &str) -> Result<String> {
         let start = Instant::now();
         let result = (|| {
-            let content = fs::read_to_string(self.path(path, false)?)?;
-            if content.len() > 32_000 {
-                return Err(io::Error::other("file exceeds 32 KB"));
+            let path = self.path(relative, false)?;
+            let mut bytes = Vec::new();
+            File::open(path)?
+                .take(MAX_READ_BYTES + 1)
+                .read_to_end(&mut bytes)?;
+            if bytes.len() as u64 > MAX_READ_BYTES {
+                return Err(ToolError::Denied("file exceeds read limit".into()));
             }
-            Ok(content)
+            String::from_utf8(bytes).map_err(|_| ToolError::Denied("file is not UTF-8".into()))
         })();
-        self.record("read_file", path, start, &result);
+        self.record(ToolAction::Read, relative, start, &result, "read file");
         result
     }
 
-    pub fn write_file(&self, path: &str, content: &str) -> io::Result<String> {
+    /// Commit only after the complete proposed content is approved. A rejected
+    /// preview, failed write, or failed rename leaves the previous file intact.
+    pub fn write_file<F>(&self, relative: &str, content: &str, preview: F) -> Result<WriteReceipt>
+    where
+        F: FnOnce(&WriteProposal<'_>) -> Result<()>,
+    {
         let start = Instant::now();
         let result = (|| {
-            if content.len() > 32_000 {
-                return Err(io::Error::other("file exceeds 32 KB"));
+            if content.len() > self.policy.max_write_bytes {
+                return Err(ToolError::Denied("write exceeds max_write_bytes".into()));
             }
-            fs::write(self.path(path, true)?, content)?;
-            Ok(format!("wrote {path} ({} bytes)", content.len()))
+            let path = self.path(relative, true)?;
+            let original = fs::metadata(&path)
+                .ok()
+                .filter(|metadata| metadata.len() <= self.policy.max_write_bytes as u64)
+                .and_then(|_| fs::read_to_string(&path).ok());
+            preview(&WriteProposal {
+                relative,
+                original: original.as_deref(),
+                content: content.as_bytes(),
+            })?;
+            // Recheck after user code ran: the callback may have changed the path.
+            self.path(relative, true)?;
+            let parent = path
+                .parent()
+                .ok_or_else(|| ToolError::Denied("missing parent".into()))?;
+            let mut temporary = NamedTempFile::new_in(parent)?;
+            temporary.write_all(content.as_bytes())?;
+            temporary.as_file().sync_all()?;
+            self.path(relative, true)?;
+            temporary
+                .persist(&path)
+                .map_err(|err| ToolError::Io(err.error))?;
+            Ok(WriteReceipt {
+                relative: relative.into(),
+                bytes: content.len(),
+            })
         })();
-        self.record("write_file", path, start, &result);
+        self.record(ToolAction::Write, relative, start, &result, "wrote file");
         result
     }
 
-    /// Fixed allowlisted task, never a model-supplied shell command.
-    /// This proof of concept requires macOS sandbox-exec; it refuses to execute otherwise.
-    pub fn run_task(&self, task: &str) -> io::Result<String> {
+    /// Return only allowlisted regular files. Symlinked directories are never entered.
+    pub fn list_files(&self) -> Result<Vec<String>> {
         let start = Instant::now();
         let result = (|| {
-            if task != "test" {
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    "only task=test is allowed",
-                ));
-            }
-            if !cfg!(target_os = "macos") || !Path::new("/usr/bin/sandbox-exec").exists() {
-                return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    "sandbox-exec unavailable: refusing to execute generated code",
-                ));
-            }
-            // Restrict filesystem writes to the generated workspace and deny network access.
-            // This OS profile is defense-in-depth, not a container/VM security boundary.
-            let root = self.workspace.canonicalize()?;
-            let home = std::env::var("HOME").unwrap_or_default();
-            let escape = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
-            // macOS toolchains need system services to compile. Deny network and
-            // writes outside the workspace; hide common credential directories.
-            let profile = format!(
-                "(version 1)\n(allow default)\n(deny network*)\n(deny file-write*)\n(allow file-write* (subpath \"{}\"))\n(deny file-read* (subpath \"{}/.ssh\") (subpath \"{}/.aws\") (subpath \"{}/.config\") (subpath \"{}/.pi\"))\n",
-                escape(&root.display().to_string()),
-                escape(&home),
-                escape(&home),
-                escape(&home),
-                escape(&home)
-            );
-            let profile_path = root.join("sandbox.sb");
-            fs::write(&profile_path, profile)?;
-            let output_path = root.join("task-output.txt");
-            let output = fs::File::create(&output_path)?;
-            let errors = output.try_clone()?;
-            fs::create_dir_all(root.join("tmp"))?;
-            let mut child = Command::new("/usr/bin/sandbox-exec")
-                .arg("-f")
-                .arg(&profile_path)
-                .arg("cargo")
-                .arg("test")
-                .arg("--offline")
-                .arg("--quiet")
-                .current_dir(&root)
-                .env("CARGO_TARGET_DIR", root.join("target"))
-                .env("TMPDIR", root.join("tmp"))
-                .env("HOME", &root)
-                .stdout(Stdio::from(output))
-                .stderr(Stdio::from(errors))
-                .spawn()?;
-            let status = match child.wait_timeout(Duration::from_secs(45))? {
-                Some(status) => status,
-                None => {
-                    child.kill()?;
-                    child.wait()?;
-                    return Err(io::Error::other("cargo test timed out after 45s"));
+            let mut files = Vec::new();
+            let mut dirs = vec![self.workspace.clone()];
+            let mut visited = 0usize;
+            while let Some(dir) = dirs.pop() {
+                for entry in fs::read_dir(dir)? {
+                    visited += 1;
+                    if visited > 10_000 {
+                        return Err(ToolError::Denied(
+                            "workspace listing exceeds entry limit".into(),
+                        ));
+                    }
+                    let entry = entry?;
+                    let ty = entry.file_type()?;
+                    if ty.is_symlink() {
+                        continue;
+                    }
+                    if ty.is_dir() {
+                        if matches!(
+                            entry.file_name().to_str(),
+                            Some(".git" | "target" | "node_modules" | ".venv" | ".next")
+                        ) {
+                            continue;
+                        }
+                        dirs.push(entry.path());
+                    } else if ty.is_file() {
+                        let rel = entry
+                            .path()
+                            .strip_prefix(&self.workspace)
+                            .map_err(|_| ToolError::Denied("outside workspace".into()))?
+                            .to_string_lossy()
+                            .to_string();
+                        if self.read.is_match(&rel) {
+                            files.push(rel);
+                        }
+                        if files.len() > 4096 {
+                            return Err(ToolError::Denied("file list exceeds limit".into()));
+                        }
+                    }
                 }
-            };
-            let text = fs::read_to_string(&output_path)?
-                .chars()
-                .take(6000)
-                .collect::<String>();
-            let text = text.trim();
-            if status.success() {
-                Ok(format!("PASS:\n{text}\n"))
-            } else {
-                Ok(format!("FAIL:\n{text}\n"))
             }
+            files.sort();
+            Ok(files)
         })();
-        self.record("run_task", task, start, &result);
+        self.record(ToolAction::List, "", start, &result, "listed files");
         result
+    }
+
+    /// Execute only configured argv in macOS sandbox-exec; no shell is involved.
+    pub fn run_named_task(&self, name: &str) -> Result<TaskOutput> {
+        let start = Instant::now();
+        let result = (|| {
+            let task = self
+                .policy
+                .tasks
+                .get(name)
+                .ok_or_else(|| ToolError::Denied("unknown task".into()))?;
+            self.run_sandboxed(&task.argv, task.timeout_secs, false)
+        })();
+        self.record_task(name, start, &result);
+        result
+    }
+
+    /// Return the names available to mise from this workspace and its usual task sources.
+    pub fn list_mise_tasks(&self) -> Result<Vec<String>> {
+        let start = Instant::now();
+        let result = (|| {
+            if !self.policy.mise_tasks {
+                return Err(ToolError::Denied("mise tasks are not enabled".into()));
+            }
+            let args = vec![
+                "mise".into(),
+                "tasks".into(),
+                "ls".into(),
+                "--name-only".into(),
+                "--hidden".into(),
+            ];
+            let output = self.run_sandboxed(&args, 15, true)?;
+            if !output.success || output.truncated {
+                return Err(ToolError::Denied(format!(
+                    "could not list mise tasks: {}",
+                    output.output.chars().take(512).collect::<String>()
+                )));
+            }
+            Ok(output
+                .output
+                .lines()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned)
+                .collect())
+        })();
+        self.record(
+            ToolAction::List,
+            "mise tasks",
+            start,
+            &result,
+            "listed mise tasks",
+        );
+        result
+    }
+
+    /// Run an exact task name returned by mise, with no model-supplied command text or arguments.
+    pub fn run_mise_task(&self, name: &str) -> Result<TaskOutput> {
+        let start = Instant::now();
+        let result = (|| {
+            if name.is_empty() || name.len() > 128 || name.starts_with('-') || name.contains(":::")
+            {
+                return Err(ToolError::Denied("invalid mise task name".into()));
+            }
+            if !self.list_mise_tasks()?.iter().any(|task| task == name) {
+                return Err(ToolError::Denied(format!("unknown mise task: {name}")));
+            }
+            self.run_sandboxed(&["mise".into(), "run".into(), name.into()], 180, true)
+        })();
+        self.record_task(name, start, &result);
+        result
+    }
+
+    fn record_task(&self, name: &str, start: Instant, result: &Result<TaskOutput>) {
+        let event_result = match result {
+            Ok(output) if !output.success => {
+                Err(ToolError::Denied("task exited unsuccessfully".into()))
+            }
+            Ok(_) => Ok(()),
+            Err(error) => Err(ToolError::Denied(error.to_string())),
+        };
+        self.record(ToolAction::Task, name, start, &event_result, "ran task");
+    }
+
+    fn run_sandboxed(&self, argv: &[String], timeout_secs: u64, mise: bool) -> Result<TaskOutput> {
+        if argv.is_empty() {
+            return Err(ToolError::Policy("task argv must not be empty".into()));
+        }
+        if !cfg!(target_os = "macos") || !Path::new("/usr/bin/sandbox-exec").is_file() {
+            return Err(ToolError::SandboxUnavailable);
+        }
+        let escape = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+        let root = escape(&self.workspace.to_string_lossy());
+        let home_dir = std::env::var("HOME").unwrap_or_default();
+        let home = escape(&home_dir);
+        // sandbox-exec is defense in depth, not a VM. Tasks can read most host
+        // files. Mise also needs its global config, so exclude only known
+        // credential directories under .config in that mode.
+        let config_denials = if mise {
+            ["gh", "gcloud", "aws", "azure", "1Password", "pi"]
+                .iter()
+                .map(|dir| format!(" (subpath \"{home}/.config/{dir}\")"))
+                .collect::<String>()
+        } else {
+            format!(" (subpath \"{home}/.config\")")
+        };
+        let profile = format!(
+            "(version 1)\n(allow default)\n(deny network*)\n(deny file-write*)\n(allow file-write* (subpath \"{root}\"))\n(deny file-read* (subpath \"{home}/.ssh\") (subpath \"{home}/.aws\") (subpath \"{home}/.pi\"){config_denials})\n"
+        );
+        // Never forward the parent's API keys or ambient secrets to tasks.
+        let mut command = Command::new("/usr/bin/sandbox-exec");
+        command.env_clear();
+        for key in ["PATH", "CARGO_HOME", "RUSTUP_HOME", "LANG", "LC_ALL"] {
+            if let Some(value) = std::env::var_os(key) {
+                command.env(key, value);
+            }
+        }
+        let tmp = self.workspace.join("tmp");
+        fs::create_dir_all(&tmp)?;
+        if mise {
+            let config_dir = std::env::var_os("MISE_CONFIG_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(&home_dir).join(".config/mise"));
+            let global_config = std::env::var_os("MISE_GLOBAL_CONFIG_FILE")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| config_dir.join("config.toml"));
+            command.env("MISE_CONFIG_DIR", &config_dir);
+            if global_config.is_file() {
+                command.env("MISE_GLOBAL_CONFIG_FILE", global_config);
+            }
+            let data_dir = std::env::var_os("MISE_DATA_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(&home_dir).join(".local/share/mise"));
+            command
+                .env("MISE_DATA_DIR", data_dir)
+                .env("MISE_CACHE_DIR", tmp.join("mise-cache"))
+                .env("MISE_STATE_DIR", tmp.join("mise-state"))
+                .env("MISE_TRUSTED_CONFIG_PATHS", &self.workspace);
+        }
+        command
+            .arg("-p")
+            .arg(profile)
+            .arg(&argv[0])
+            .args(&argv[1..])
+            .current_dir(&self.workspace)
+            .env("HOME", &self.workspace)
+            .env("TMPDIR", &tmp)
+            .env("GOCACHE", tmp.join("go-cache"))
+            .env("GOTELEMETRY", "off")
+            .env("CARGO_TARGET_DIR", self.workspace.join("target"))
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(unix)]
+        command.process_group(0);
+        let mut child = command.spawn()?;
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+        let out = thread::spawn(move || capture(stdout));
+        let err = thread::spawn(move || capture(stderr));
+        let status = child.wait_timeout(Duration::from_secs(timeout_secs))?;
+        if status.is_none() {
+            // Kill the entire task tree, not only sandbox-exec's wrapper.
+            #[cfg(unix)]
+            {
+                // SAFETY: this is the process group created for this child.
+                unsafe { libc::killpg(child.id() as i32, libc::SIGKILL) };
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        let (mut output, out_truncated) = out
+            .join()
+            .map_err(|_| ToolError::Denied("output reader failed".into()))??;
+        let (errors, err_truncated) = err
+            .join()
+            .map_err(|_| ToolError::Denied("error reader failed".into()))??;
+        let remaining = MAX_OUTPUT_BYTES.saturating_sub(output.len());
+        let truncated = out_truncated || err_truncated || errors.len() > remaining;
+        output.extend_from_slice(&errors[..errors.len().min(remaining)]);
+        if status.is_none() {
+            return Err(ToolError::Timeout(timeout_secs));
+        }
+        let status = status.unwrap();
+        Ok(TaskOutput {
+            success: status.success(),
+            exit_code: status.code(),
+            output: String::from_utf8_lossy(&output).into_owned(),
+            truncated,
+        })
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn executes_allowlisted_tests_in_sandbox() {
-        let dir =
-            std::env::temp_dir().join(format!("diffagent-sandbox-test-{}", std::process::id()));
-        let host = ToolHost::new(dir.clone(), None).unwrap();
-        host.write_file(
-            "src/lib.rs",
-            "#[test] fn works() { assert_eq!(2 + 2, 4); }\n",
-        )
-        .unwrap();
-        let output = host.run_task("test").unwrap();
-        assert!(output.starts_with("PASS:"), "{output}");
-        fs::remove_dir_all(dir).unwrap();
+fn capture(mut stream: impl Read) -> io::Result<(Vec<u8>, bool)> {
+    let mut output = Vec::new();
+    let mut truncated = false;
+    let mut chunk = [0u8; 4096];
+    loop {
+        let n = stream.read(&mut chunk)?;
+        if n == 0 {
+            break;
+        }
+        let take = n.min(MAX_OUTPUT_BYTES.saturating_sub(output.len()));
+        output.extend_from_slice(&chunk[..take]);
+        truncated |= take < n;
     }
+    Ok((output, truncated))
+}
 
-    #[test]
-    fn seeds_acceptance_tests_outside_the_model_tool_surface() {
-        let dir =
-            std::env::temp_dir().join(format!("diffagent-acceptance-test-{}", std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        let fixture = dir.join("fixture.rs");
-        fs::write(&fixture, "#[test] fn external() { assert!(true); }\n").unwrap();
-        let host = ToolHost::new(dir.join("workspace"), Some(&fixture)).unwrap();
-        assert!(host.workspace().join("tests/acceptance.rs").is_file());
-        assert!(host.read_file("tests/acceptance.rs").is_err());
-        assert!(host.write_file("tests/acceptance.rs", "").is_err());
-        fs::remove_dir_all(dir).unwrap();
-    }
+fn is_shell(binary: &str) -> bool {
+    matches!(
+        Path::new(binary).file_name().and_then(|s| s.to_str()),
+        Some("sh" | "bash" | "zsh" | "fish" | "dash" | "ksh" | "csh" | "tcsh" | "env")
+    )
+}
 
-    #[test]
-    fn rejects_traversal_and_arbitrary_tasks() {
-        let dir = std::env::temp_dir().join(format!("diffagent-tool-test-{}", std::process::id()));
-        let host = ToolHost::new(dir.clone(), None).unwrap();
-        assert!(host.write_file("../outside", "x").is_err());
-        assert!(host.read_file("../../.ssh/id_rsa").is_err());
-        assert!(host.run_task("rm -rf /").is_err());
-        fs::remove_dir_all(dir).unwrap();
+fn compile_globs(patterns: &[String]) -> Result<GlobSet> {
+    let mut builder = GlobSetBuilder::new();
+    for pattern in patterns {
+        if pattern.is_empty()
+            || Path::new(pattern).components().any(|c| {
+                matches!(
+                    c,
+                    Component::ParentDir | Component::RootDir | Component::Prefix(_)
+                )
+            })
+        {
+            return Err(ToolError::Policy(format!(
+                "invalid allowlist glob: {pattern}"
+            )));
+        }
+        builder.add(Glob::new(pattern).map_err(|e| ToolError::Policy(e.to_string()))?);
     }
+    builder
+        .build()
+        .map_err(|e| ToolError::Policy(e.to_string()))
 }

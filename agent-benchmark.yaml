@@ -1,0 +1,19 @@
+version: 1
+name: benchmark-coding
+model: deepseek-flash
+system_prompt: prompts/next-chat.md
+skills:
+  - skills/benchmark
+flows:
+  - flows/implement.yaml
+tools:
+  read:
+    - src/**
+    - Cargo.toml
+  write:
+    - src/**
+  max_write_bytes: 262144
+  tasks:
+    test:
+      argv: [cargo, test, --offline]
+      timeout_secs: 45

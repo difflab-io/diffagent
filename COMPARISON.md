@@ -1,6 +1,6 @@
 # Rig vs Ax: initial smoke runs
 
-For the stronger two-task, eight-run comparison with external acceptance tests, see [benchmarks/SUMMARY.md](benchmarks/SUMMARY.md). This page preserves the earlier smoke-run observations, where each agent wrote its own tests.
+For the current three-backend full-agent comparison, see [benchmarks/AGENTS.md](benchmarks/AGENTS.md). The older [Rig versus AxGen comparison](benchmarks/SUMMARY.md) used a lighter Ax tool loop. This page preserves the first smoke runs, where each agent wrote its own tests.
 
 Both separate CLIs received [`examples/tic-tac-toe.md`](examples/tic-tac-toe.md), followed [`diffagent.yaml`](diffagent.yaml), used `deepseek-flash`, and had the same three host tools. These are **single observed runs**, not a benchmark or statistical evaluation. Models generated different-sized implementations and different tests.
 

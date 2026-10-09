@@ -1,0 +1,22 @@
+[package]
+name = "diffagent-adk"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+diffagent-core = { path = "../diffagent-core" }
+diffagent-tui = { path = "../diffagent-tui" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+async-trait = "0.1"
+adk-agent = "=2.2.0"
+adk-core = "=2.2.0"
+adk-model = { version = "=2.2.0", default-features = false, features = ["deepseek"] }
+adk-runner = "=2.2.0"
+adk-session = "=2.2.0"
+adk-tool = "=2.2.0"
+futures = "0.3"
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
