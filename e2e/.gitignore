@@ -1,0 +1,5 @@
+outputs/
+desktop/dist-e2e/
+desktop/.vite/
+desktop/playwright-report/
+desktop/test-results/
