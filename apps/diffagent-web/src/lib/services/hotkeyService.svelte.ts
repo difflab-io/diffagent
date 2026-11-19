@@ -178,10 +178,6 @@ export class HotkeyService {
     },
   }
 
-  private get controller() {
-    return typeof document !== 'undefined' ? getDocumentWhichKeyController(document) : null
-  }
-
   /** Opens the active command surface (`CommandPalette` or `CommandMenu`). */
   openCommand(): boolean {
     this.commandOpen = true
@@ -410,5 +406,9 @@ export class HotkeyService {
         },
       },
     ]
+  }
+
+  private get controller() {
+    return typeof document !== 'undefined' ? getDocumentWhichKeyController(document) : null
   }
 }

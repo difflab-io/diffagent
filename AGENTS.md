@@ -20,6 +20,7 @@
 
 - Keep one responsibility per module and service. Wire cross-service events at application entry points (`apps/diffagent-desktop/src/app.rs` and `apps/diffagent-web/src/lib/components/Shell.svelte`).
 - In Rust types, use one inherent `impl` block per type with constructors first, `// Public` methods second, `// Private` helpers last, and trait `impl` blocks afterward. Pad section comments with hyphens to column 80.
+- [Proposed] Place public functions, methods, and getters ahead of private helpers in Rust modules and TypeScript service classes.
 - In Svelte 5 components, group `<script lang="ts">` sections with padded `// Props`, `// State`, `// Lifecycle`, and `// Methods` headers.
 
 ## Style

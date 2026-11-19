@@ -59,6 +59,74 @@ pub fn configure_builder<R: tauri::Runtime>(
         .invoke_handler(commands)
 }
 
+/// Shared Tauri IPC command dispatch table for production and `MockRuntime` builds.
+pub fn commands<R: tauri::Runtime>(invoke: tauri::ipc::Invoke<R>) -> bool {
+    let handler: fn(tauri::ipc::Invoke<R>) -> bool =
+        tauri::generate_handler![app_info, app_frontend_ready];
+    handler(invoke)
+}
+
+/// Builds the `tauri-specta` command and type registry for exporting TypeScript bindings.
+pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new()
+        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        .disable_serde_phases()
+        .dangerously_cast_bigints_to_number()
+        .typ::<AppReadyEvent>()
+        .commands(tauri_specta::collect_commands![
+            app_info,
+            app_frontend_ready
+        ])
+}
+
+/// Exports TypeScript bindings (`apps/diffagent-web/src/lib/gen/bindings.ts`) from the Specta registry.
+pub fn export_typescript_bindings_to(
+    path: &std::path::Path,
+) -> std::result::Result<String, String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    let exporter =
+        specta_typescript::Typescript::default().header("// @ts-nocheck\n/* eslint-disable */\n");
+    specta_builder()
+        .export(exporter, path)
+        .map_err(|err| err.to_string())?;
+    std::fs::read_to_string(path).map_err(|err| err.to_string())
+}
+
+/// Starts the native Tauri desktop application loop.
+pub fn run() {
+    builder(None)
+        .run(app_context())
+        .expect("error while running Tauri application");
+}
+
+/// Returns host package metadata and the active `DIFFAGENT_HOME` path.
+#[tauri::command]
+#[specta::specta]
+pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo> {
+    Ok(AppInfo {
+        name: env!("CARGO_PKG_NAME").to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        home_dir: state.home_dir.to_string_lossy().to_string(),
+    })
+}
+
+/// Records that the frontend shell mounted and emits `app-ready` on the event bus.
+#[tauri::command]
+#[specta::specta]
+pub fn app_frontend_ready(state: State<'_, AppState>) -> Result<()> {
+    state.frontend_ready.store(true, Ordering::SeqCst);
+    state
+        .events
+        .dispatch(AppEvent::FrontendReady(AppReadyEvent { ready: true }));
+    Ok(())
+}
+
+pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
+    tauri::generate_context!()
+}
+
 pub(crate) fn init_app_state<R: tauri::Runtime>(
     app_handle: &tauri::AppHandle<R>,
     explicit_home: Option<PathBuf>,
@@ -97,72 +165,4 @@ fn resolve_home_dir<R: tauri::Runtime>(
         Some(dir) => Ok(dir.join(".diffagent")),
         None => Err("Cannot resolve home directory".into()),
     }
-}
-
-/// Shared Tauri IPC command dispatch table for production and `MockRuntime` builds.
-pub fn commands<R: tauri::Runtime>(invoke: tauri::ipc::Invoke<R>) -> bool {
-    let handler: fn(tauri::ipc::Invoke<R>) -> bool =
-        tauri::generate_handler![app_info, app_frontend_ready];
-    handler(invoke)
-}
-
-/// Builds the `tauri-specta` command and type registry for exporting TypeScript bindings.
-pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    tauri_specta::Builder::<tauri::Wry>::new()
-        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
-        .disable_serde_phases()
-        .dangerously_cast_bigints_to_number()
-        .typ::<AppReadyEvent>()
-        .commands(tauri_specta::collect_commands![
-            app_info,
-            app_frontend_ready
-        ])
-}
-
-/// Exports TypeScript bindings (`apps/diffagent-web/src/lib/gen/bindings.ts`) from the Specta registry.
-pub fn export_typescript_bindings_to(
-    path: &std::path::Path,
-) -> std::result::Result<String, String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    let exporter =
-        specta_typescript::Typescript::default().header("// @ts-nocheck\n/* eslint-disable */\n");
-    specta_builder()
-        .export(exporter, path)
-        .map_err(|err| err.to_string())?;
-    std::fs::read_to_string(path).map_err(|err| err.to_string())
-}
-
-pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
-    tauri::generate_context!()
-}
-
-/// Starts the native Tauri desktop application loop.
-pub fn run() {
-    builder(None)
-        .run(app_context())
-        .expect("error while running Tauri application");
-}
-
-/// Returns host package metadata and the active `DIFFAGENT_HOME` path.
-#[tauri::command]
-#[specta::specta]
-pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo> {
-    Ok(AppInfo {
-        name: env!("CARGO_PKG_NAME").to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        home_dir: state.home_dir.to_string_lossy().to_string(),
-    })
-}
-
-/// Records that the frontend shell mounted and emits `app-ready` on the event bus.
-#[tauri::command]
-#[specta::specta]
-pub fn app_frontend_ready(state: State<'_, AppState>) -> Result<()> {
-    state.frontend_ready.store(true, Ordering::SeqCst);
-    state
-        .events
-        .dispatch(AppEvent::FrontendReady(AppReadyEvent { ready: true }));
-    Ok(())
 }
