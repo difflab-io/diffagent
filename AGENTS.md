@@ -43,6 +43,8 @@
 - Document all runtime and test environment variables in [`docs/environment.md`](docs/environment.md) and system boundaries in [`docs/architecture/index.md`](docs/architecture/index.md).
 - Write documentation in plain, active-voice English with soft-wrapped paragraphs, no bold list lead-ins, and Mermaid diagrams or tables over long prose.
 - Preserve Difflab template headings in `docs/architecture/index.md` without `FR` or `NFR` bullet prefixes under `## Requirement`.
+- State `## Requirement` bullets in architecture docs as client-facing behavioral and performance characteristics rather than internal implementation specs.
+- Omit UI keyboard shortcut and keybinding reference tables from architecture docs.
 
 ## Testing
 

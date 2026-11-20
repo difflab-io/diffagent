@@ -8,17 +8,17 @@ Diffagent is an open-source workspace for declarative local and cloud coding age
 
 ### Functional
 
-- Print CLI help, version, and resolved home-directory status in human-readable text or machine-readable JSON (`--json`).
-- Launch the native desktop application as a detached background process via `diffagent open` without path arguments.
-- Render a responsive desktop shell with spatial `sidebar` and `main` panes, an empty-state view, a status bar mode indicator, `WhichKey` chord navigation, a searchable keybinding explorer, 2D jump badges, and switchable `CommandPalette` (`Mod+K`) and `CommandMenu` (`:`) command surfaces.
-- Generate typed TypeScript bindings for Tauri host commands directly from Rust signatures via `diffagent-desktop --export-bindings`.
+- Query CLI status, version, and active home directory in human-readable text or structured JSON.
+- Launch the native desktop application from the CLI without blocking the calling terminal or requiring path arguments.
+- Navigate the desktop application shell, sidebar, and command surfaces from the keyboard with modal shortcuts and searchable command discovery.
+- Synchronize desktop host metadata and startup readiness between the native host and frontend UI.
 
 ### Non-Functional
 
-- Isolate development commands and automated tests from `~/.diffagent` through `DIFFAGENT_HOME`, and guard test teardown with `assertIsolatedTestHome`.
-- Leave `DIFFAGENT_HOME` untouched on disk when running read-only CLI commands (`--help`, `--version`, `status`, and invalid invocations).
-- Retain per-test transcripts (`cli.log` and `ipc.log`) and isolated `diffagent-home/` directories under `e2e/outputs/` after passing and failing runs.
-- Keep Tauri native dependencies isolated from workspace CLI builds by excluding `apps/diffagent-desktop` from the root Cargo workspace.
+- Keep local CLI inspection commands read-only so querying help, version, or status never writes to the user's home directory.
+- Isolate development and test runs from the user's personal `~/.diffagent` state directory so automation never alters user data.
+- Support cross-platform execution across Linux, macOS, and Windows while keeping CLI execution independent of native desktop runtime libraries.
+- Keep desktop shell startup and keyboard navigation responsive offline without requiring a remote server.
 
 ## Design
 
@@ -98,18 +98,6 @@ diffagent-desktop --ipc-bridge <HOME_DIR>
 | CLI `--json` error (exit `1` or `2`) | Invalid flag or missing binary     | `{ "error": { "code": "invalid_argument \| not_found \| command_failed", "message": "..." } }` |
 | `app_info` (Tauri IPC)               | none                               | `AppInfo { name: string, version: string, homeDir: string }`                                   |
 | `app_frontend_ready` (Tauri IPC)     | none                               | `null` plus webview event `app-ready` (`{ ready: true }`)                                      |
-
-| Input chord or command                | Action                                                                |
-| ------------------------------------- | --------------------------------------------------------------------- |
-| `:`, `Space :`, `Mod+K`               | Open active command surface (`CommandPalette` or `CommandMenu`)       |
-| `Space ?`, `Space /`                  | Open searchable `WhichKey` Keybinding Explorer                        |
-| `Space e`, `Control+E`                | Toggle navigation sidebar and transfer pane focus                     |
-| `Space j`, `gw`                       | Enter 2D home-row Jump Mode across visible controls                   |
-| `Space w`, `Control+W`                | Spatial pane navigation (`sidebar` and `main`)                        |
-| `Space v`                             | Viewport scroll alignment (`z` in Helix and Vim, `v` in Kakoune)      |
-| `Space t w`                           | Toggle `WhichKey` popup between all prefixes and leader-only          |
-| `Space k h`, `Space k v`, `Space k k` | Switch modal grammar between Helix, Vim, and Kakoune                  |
-| `command-style` (`palette`, `menu`)   | Switch between centered `CommandPalette` and bottom `:` `CommandMenu` |
 
 ## Implementation
 
