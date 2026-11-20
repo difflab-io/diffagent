@@ -16,7 +16,7 @@
     WhichKeyProvider,
   } from '@cloudvoyant/helical-svelte'
   import { EmptyState } from 'diffagent-ui'
-  import { PanelLeft } from 'lucide-svelte'
+  import PanelLeft from 'lucide-svelte/icons/panel-left'
   import {
     desktopClient,
     errorMessage,

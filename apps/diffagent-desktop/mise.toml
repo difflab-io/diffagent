@@ -1,6 +1,7 @@
 # Template contract tasks, generated-project Rust toolchain, and native host packages.
 
 [tools]
+bun = "1.4.2"
 rust = { version = "1.94.0", components = "rustfmt,clippy,rust-analyzer" }
 "cargo:tauri-cli" = "2.11.5"
 
@@ -153,10 +154,30 @@ run = '''
 set -eu
 if [ "${PREMISE_TEMPLATE_TEST:-}" = "1" ]; then
   cargo tauri build --debug --no-bundle
-elif [ "$(uname -s)" = "Darwin" ] && [ "$(launchctl managername 2>/dev/null || true)" != "Aqua" ]; then
+  exit 0
+fi
+
+web_port="${DIFFAGENT_WEB_PORT:-$(bun -e '
+  import { createServer } from "node:net";
+  const tryListen = (port) => new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.unref();
+    srv.once("error", reject);
+    srv.listen(port, "127.0.0.1", () => {
+      const chosen = srv.address().port;
+      srv.close(() => resolve(chosen));
+    });
+  });
+  console.log(await tryListen(1420).catch(() => tryListen(0)));
+')}"
+export DIFFAGENT_WEB_PORT="$web_port"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/diffagent-dev.XXXXXX")"
+tauri_dev_cfg="$tmp_dir/tauri.dev.json"
+printf '{"build":{"devUrl":"http://127.0.0.1:%s"}}\n' "$web_port" > "$tauri_dev_cfg"
+
+if [ "$(uname -s)" = "Darwin" ] && [ "$(launchctl managername 2>/dev/null || true)" != "Aqua" ]; then
   uid="$(id -u)"
   label="io.difflab.diffagent.desktop.dev.$$"
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/diffagent-aqua.XXXXXX")"
   plist="$tmp_dir/$label.plist"
   out_log="$tmp_dir/out.log"
   done_file="$tmp_dir/done"
@@ -188,6 +209,8 @@ elif [ "$(uname -s)" = "Darwin" ] && [ "$(launchctl managername 2>/dev/null || t
     <string>${RUSTUP_HOME:-$HOME/.rustup}</string>
     <key>DIFFAGENT_HOME</key>
     <string>${DIFFAGENT_HOME:-}</string>
+    <key>DIFFAGENT_WEB_PORT</key>
+    <string>$web_port</string>
     <key>RUST_LOG</key>
     <string>${RUST_LOG:-}</string>
   </dict>
@@ -195,7 +218,7 @@ elif [ "$(uname -s)" = "Darwin" ] && [ "$(launchctl managername 2>/dev/null || t
   <array>
     <string>/bin/sh</string>
     <string>-c</string>
-    <string>cargo tauri dev; echo \$? > "$done_file"</string>
+    <string>cargo tauri dev --config "$tauri_dev_cfg"; echo \$? > "$done_file"</string>
   </array>
   <key>WorkingDirectory</key>
   <string>$PWD</string>
@@ -218,7 +241,8 @@ EOF
   sleep 0.1
   exit "$rc"
 else
-  cargo tauri dev
+  trap 'rm -rf "$tmp_dir"' INT TERM EXIT
+  cargo tauri dev --config "$tauri_dev_cfg"
 fi
 '''
 

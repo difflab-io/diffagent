@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "mise run //apps/diffagent-web:dev",
     "beforeBuildCommand": "mise run //apps/diffagent-web:build",
-    "devUrl": "http://127.0.0.1:5173",
+    "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../diffagent-web/build"
   },
   "app": {
