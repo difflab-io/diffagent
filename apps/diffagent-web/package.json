@@ -1,0 +1,36 @@
+{
+  "name": "diffagent-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "build": "vite build",
+    "clean": "rm -rf .svelte-kit build coverage",
+    "test": "bun test --pass-with-no-tests",
+    "dev": "vite dev",
+    "start": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "3",
+    "@sveltejs/kit": "2.70.3",
+    "@sveltejs/vite-plugin-svelte": "7.3.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/bun": "1.4.2",
+    "prettier": "3.9.8",
+    "prettier-plugin-svelte": "4.1.1",
+    "svelte": "5.57.0",
+    "svelte-check": "4.7.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.0"
+  },
+  "dependencies": {
+    "@cloudvoyant/helical-svelte": "0.24.0",
+    "@cloudvoyant/helical-ui": "0.24.0",
+    "@tauri-apps/api": "2.12.3",
+    "diffagent-ui": "workspace:*",
+    "lucide-svelte": "0.577.0",
+    "manim-web": "0.3.24"
+  }
+}

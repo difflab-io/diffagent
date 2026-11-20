@@ -1,0 +1,53 @@
+# Worktree and temporary state
+.tmp/
+**/.tmp/
+
+# Rust build artifacts
+target/
+**/target/
+
+# Bun dependencies and generated output
+node_modules/
+**/node_modules/
+bun.lock
+**/bun.lock
+!/bun.lock
+dist/
+**/dist/
+**/dist-e2e/
+**/.vite/
+.output/
+**/.output/
+.svelte-kit/
+**/.svelte-kit/
+build/
+**/build/
+coverage/
+**/coverage/
+
+# Browser and E2E test artifacts
+**/test-results/
+**/playwright-report/
+/e2e/outputs/
+
+# Mise local state
+.mise/
+**/.mise/
+.mise.local.toml
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Agent and editor state
+.claude/
+.codevoyant
+.difflab
+.pi/
+.idea/
+.vscode/
+*.swp
+
+# Operating system files
+.DS_Store

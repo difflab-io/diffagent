@@ -1,0 +1,59 @@
+workspace:
+    name: diffagent
+    kind: monorepo
+    schema-version: "0.2"
+    package_managers:
+        - cargo
+        - bun
+    providers:
+        ci: github
+        tools: mise
+        tasks: mise
+        infra: none
+        versioning: svu
+    projects:
+        - name: diffagent-cli
+          template: cloudvoyant/premise-cargo:premise-clap-cli
+          path: apps/diffagent-cli
+          ci:
+            check_platforms:
+                - linux
+                - macos
+                - windows
+            release_platforms:
+                - linux
+                - macos
+                - windows
+          answers:
+            name: diffagent-cli
+        - name: diffagent-desktop
+          template: cloudvoyant/premise-cargo:premise-tauri-app
+          path: apps/diffagent-desktop
+          ci:
+            check_platforms:
+                - linux
+                - macos
+                - windows
+            release_platforms:
+                - linux
+                - macos
+                - windows
+          answers:
+            identifier: com.diffagent.desktop
+            name: diffagent-desktop
+        - name: diffagent-web
+          template: cloudvoyant/premise-bun:premise-sveltekit-app
+          path: apps/diffagent-web
+          ci:
+            check_platforms:
+                - linux
+          answers:
+            name: diffagent-web
+        - name: diffagent-ui
+          template: cloudvoyant/premise-bun:premise-ts-lib
+          path: libs/diffagent-ui
+          ci:
+            check_platforms:
+                - linux
+          answers:
+            name: diffagent-ui

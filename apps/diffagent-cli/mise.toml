@@ -1,0 +1,130 @@
+# Template contract tasks and generated-project Rust toolchain.
+
+[tools]
+rust = { version = "1.94.0", components = "rustfmt,clippy,rust-analyzer" }
+"cargo:cargo-zigbuild" = "0.23.4"
+zig = "0.16.0"
+
+[tasks.install]
+description = "Resolve and fetch Cargo dependencies"
+run = "cargo fetch"
+
+[tasks.build]
+description = "Compile the CLI"
+run = "cargo build"
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "cargo clean"
+
+[tasks.test]
+description = "Run the test suite"
+run = "cargo test"
+
+[tasks.lint]
+description = "Lint with clippy (deny warnings)"
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+[tasks."lint:fix"]
+description = "Auto-fix clippy findings"
+run = "cargo clippy --fix --allow-dirty --allow-staged --allow-no-vcs"
+
+[tasks.format]
+description = "Format Rust sources"
+run = "cargo fmt -p diffagent-cli"
+
+[tasks."format:check"]
+description = "Check formatting without modifying files"
+run = "cargo fmt -p diffagent-cli --check"
+
+[tasks.env-pull]
+description = "Pull external environment configuration"
+run = 'echo "env-pull: nothing to pull"'
+
+[tasks.release]
+description = "Build CLI binary archive and hand it off for the requested mode"
+depends = ["install"]
+usage = 'arg "<mode>" { choices "build" "publish" "publish:rc" }'
+run = '''
+set -eu
+if [ "${PREMISE_TEMPLATE_TEST:-}" = "1" ]; then
+  cargo build
+  exit 0
+fi
+: "${RELEASE_VERSION:?RELEASE_VERSION is required}"
+: "${PREMISE_ARTIFACT_DIR:?PREMISE_ARTIFACT_DIR is required}"
+cargo build --release --locked
+target_dir="$(cargo metadata --no-deps --format-version 1 | jq -r .target_directory)"
+os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
+case "$os_name" in
+  darwin) os_name="macos" ;;
+esac
+arch_name="$(uname -m)"
+case "$arch_name" in
+  amd64) arch_name="x86_64" ;;
+  arm64) arch_name="aarch64" ;;
+esac
+mkdir -p "$PREMISE_ARTIFACT_DIR"
+version="${RELEASE_VERSION#v}"
+archive_name="diffagent-${version}-${os_name}-${arch_name}.tar.gz"
+tar -C "$target_dir/release" -czf "$PREMISE_ARTIFACT_DIR/$archive_name" diffagent
+'''
+run_windows = '''#!/usr/bin/env pwsh
+$ErrorActionPreference = 'Stop'
+if ($env:PREMISE_TEMPLATE_TEST -eq '1') {
+  cargo build
+  exit $LASTEXITCODE
+}
+if (-not $env:RELEASE_VERSION) { throw 'RELEASE_VERSION is required' }
+if (-not $env:PREMISE_ARTIFACT_DIR) { throw 'PREMISE_ARTIFACT_DIR is required' }
+cargo build --release --locked
+if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
+$metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw 'cargo metadata failed' }
+$releaseDir = Join-Path $metadata.target_directory 'release'
+$arch = switch ($env:PROCESSOR_ARCHITECTURE.ToLowerInvariant()) {
+  'amd64' { 'x86_64' }
+  'arm64' { 'aarch64' }
+  default { $env:PROCESSOR_ARCHITECTURE.ToLowerInvariant() }
+}
+New-Item -ItemType Directory -Force -Path $env:PREMISE_ARTIFACT_DIR | Out-Null
+$version = $env:RELEASE_VERSION -replace '^v', ''
+$archivePath = Join-Path $env:PREMISE_ARTIFACT_DIR "diffagent-${version}-windows-${arch}.tar.gz"
+& "$env:SystemRoot\System32\tar.exe" -C $releaseDir -czf $archivePath diffagent.exe
+if ($LASTEXITCODE -ne 0) { throw 'tar archive creation failed' }
+'''
+
+[tasks."release:build"]
+description = "Build CLI binary archive for a platform release"
+run = "mise run release -- build"
+
+[tasks."publish:rc"]
+description = "Private package; publication disabled"
+run = 'echo "Private package; publication disabled"'
+
+[tasks.publish]
+description = "Private package; publication disabled"
+run = 'echo "Private package; publication disabled"'
+
+[tasks.run]
+description = "Run the CLI"
+run = "cargo run --"
+
+[tasks.dev]
+description = "Run the CLI in development mode"
+run = '''
+set -eu
+if [ "${PREMISE_TEMPLATE_TEST:-}" = "1" ]; then
+  cargo build
+else
+  cargo run --
+fi
+'''
+
+[tasks.deploy]
+description = "Validate the deploy contract (no deployable surface)"
+run = 'echo "deploy: no deployable surface"'
+
+[tasks.e2e]
+description = "Validate the e2e contract (covered by root e2e/cli)"
+run = 'echo "e2e: covered by root e2e/cli"'

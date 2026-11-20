@@ -1,0 +1,30 @@
+[tasks.test]
+depends = ["//:install", "//apps/diffagent-cli:build"]
+description = "Run TypeScript CLI E2E journeys"
+dir = "{{config_root}}/../.."
+run = "bun x vitest run --config e2e/cli/vitest.config.ts"
+
+[tasks.smoke]
+depends = ["//:install", "//apps/diffagent-cli:build"]
+description = "Run representative CLI E2E journeys"
+dir = "{{config_root}}/../.."
+run = "bun x vitest run --config e2e/cli/vitest.config.ts --tags-filter=smoke --hideSkippedTests"
+
+[tasks.list]
+depends = ["//:install"]
+description = "List CLI BDD journeys without running them"
+dir = "{{config_root}}/../.."
+run = "bun x vitest list --config e2e/cli/vitest.config.ts"
+
+[tasks.lint]
+depends = ["//:install"]
+dir = "{{config_root}}/../.."
+run = "bun x eslint e2e/cli e2e/common"
+
+[tasks.format]
+dir = "{{config_root}}/../.."
+run = "bun x prettier --write 'e2e/cli/**/*.ts' 'e2e/common/**/*.ts'"
+
+[tasks."format:check"]
+dir = "{{config_root}}/../.."
+run = "bun x prettier --check 'e2e/cli/**/*.ts' 'e2e/common/**/*.ts'"
