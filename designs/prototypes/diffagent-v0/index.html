@@ -1,0 +1,3861 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Diffagent v0 — declarative bot console</title>
+    <!-- Match Difflab and LGTM pinned, browser-only prototype dependencies. -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/preline@5.0.0/dist/preline.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js"></script>
+    <style type="text/tailwindcss">
+      @theme {
+        --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+    </style>
+    <style>
+      :root {
+        font:
+          11px Inter,
+          ui-sans-serif,
+          system-ui,
+          sans-serif;
+        color: #1e293b;
+        background: #f1f5f9;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f1f5f9;
+        color: #1e293b;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      button,
+      a,
+      input,
+      select,
+      textarea {
+        outline-offset: 2px;
+      }
+      button {
+        cursor: pointer;
+        border: 1px solid #cbd5e1;
+        border-radius: 5px;
+        background: #fff;
+        color: #334155;
+        padding: 5px 9px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      button:hover {
+        background: #f1f5f9;
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.45;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid #475569;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 16px;
+        font-weight: 650;
+      }
+      h2 {
+        font-size: 12px;
+        font-weight: 600;
+      }
+      h3 {
+        font-size: 11px;
+        font-weight: 600;
+      }
+      p {
+        line-height: 1.5;
+      }
+      input:not([type='radio']):not([type='checkbox']),
+      select,
+      textarea {
+        border: 1px solid #cbd5e1;
+        border-radius: 5px;
+        padding: 6px 8px;
+        background: #fff;
+        color: #1e293b;
+      }
+      textarea {
+        width: 100%;
+        resize: vertical;
+        line-height: 1.5;
+      }
+      input[type='radio'],
+      input[type='checkbox'] {
+        accent-color: #334155;
+      }
+      label {
+        cursor: pointer;
+      }
+      code,
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+      .primary {
+        background: #1e293b;
+        color: #fff;
+        border-color: #1e293b;
+      }
+      .primary:hover {
+        background: #0f172a;
+      }
+      .quiet {
+        border-color: transparent;
+        background: transparent;
+      }
+      .quiet:hover {
+        background: #e2e8f0;
+      }
+      .danger {
+        color: #be123c;
+        border-color: #fecdd3;
+        background: #fff1f2;
+      }
+      .danger:hover {
+        background: #ffe4e6;
+      }
+      .muted {
+        color: #64748b;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 500;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #475569;
+        border-radius: 4px;
+        padding: 1px 6px;
+        white-space: nowrap;
+      }
+      .badge.green {
+        background: #ecfdf5;
+        border-color: #a7f3d0;
+        color: #047857;
+      }
+      .badge.amber {
+        background: #fffbeb;
+        border-color: #fde68a;
+        color: #b45309;
+      }
+      .badge.red {
+        background: #fff1f2;
+        border-color: #fecdd3;
+        color: #be123c;
+      }
+      .badge.blue {
+        background: #f0f9ff;
+        border-color: #bae6fd;
+        color: #0369a1;
+      }
+      .badge.violet {
+        background: #f5f3ff;
+        border-color: #ddd6fe;
+        color: #6d28d9;
+      }
+      /* Outer Shell: Topbar + Body (Left Rail + Main + Right Settings Sidebar) */
+      .shell {
+        height: 100dvh;
+        min-height: 540px;
+        display: flex;
+        flex-direction: column;
+        background: #f8fafc;
+        overflow: hidden;
+      }
+      .topbar {
+        height: 48px;
+        flex: none;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #fff;
+      }
+      .top-left {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+      }
+      .brand-lockup {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        flex: none;
+      }
+      .brand-mark {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: #0f172a;
+        color: #fff;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .brand-text {
+        font-size: 13.5px;
+        font-weight: 750;
+        letter-spacing: -0.5px;
+        color: #0f172a;
+      }
+      .top-divider {
+        width: 1px;
+        height: 18px;
+        background: #e2e8f0;
+        flex: none;
+      }
+      .top-bot-info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+      }
+      .top-title {
+        font-size: 12px;
+        font-weight: 650;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .top-center {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .top-tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        background: #f1f5f9;
+        padding: 3px;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+      }
+      .tab-btn {
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #475569;
+      }
+      .tab-btn:hover {
+        color: #0f172a;
+        background: rgba(255, 255, 255, 0.6);
+      }
+      .tab-btn.active {
+        background: #fff;
+        color: #0f172a;
+        border-color: #cbd5e1;
+        font-weight: 600;
+        box-shadow: 0 1px 1px rgba(15, 23, 42, 0.04);
+      }
+      .top-right {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+      .body-row {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+      }
+      /* Permanently Collapsed Avatar Rail (Full Top-Down, No Collapse, No Search) */
+      .rail {
+        width: 56px;
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: #f8fafc;
+        border-right: 1px solid #e2e8f0;
+        padding: 10px 0 10px;
+        gap: 8px;
+        min-height: 0;
+      }
+      .rail-bots {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 2px 0;
+      }
+      .rail-slot {
+        position: relative;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border: 1.5px solid transparent;
+        border-radius: 11px;
+        background: transparent;
+        justify-content: center;
+        flex: none;
+      }
+      .rail-slot:hover {
+        background: #e2e8f0;
+      }
+      .rail-slot.active {
+        background: #fff;
+        border-color: #94a3b8;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+      }
+      .rail-slot.active::before {
+        content: '';
+        position: absolute;
+        left: -8px;
+        top: 9px;
+        bottom: 9px;
+        width: 3px;
+        border-radius: 0 3px 3px 0;
+        background: #0f172a;
+      }
+      .rail-slot.paused {
+        opacity: 0.62;
+      }
+      .rail-add {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border: 1.5px dashed #cbd5e1;
+        border-radius: 10px;
+        background: #fff;
+        color: #475569;
+        font-size: 16px;
+        font-weight: 500;
+        justify-content: center;
+        flex: none;
+      }
+      .rail-add:hover {
+        border-color: #475569;
+        color: #0f172a;
+        background: #f1f5f9;
+      }
+      .rail-dot {
+        position: absolute;
+        right: 2px;
+        bottom: 2px;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        border: 1.5px solid #f8fafc;
+      }
+      .rail-dot.online {
+        background: #10b981;
+      }
+      .rail-dot.idle {
+        background: #f59e0b;
+      }
+      .rail-dot.paused {
+        background: #94a3b8;
+      }
+      .rail-footer {
+        position: relative;
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding-top: 10px;
+        border-top: 1px solid #e2e8f0;
+        width: 100%;
+      }
+      .rail-icon {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        background: transparent;
+        color: #475569;
+        justify-content: center;
+      }
+      .rail-icon:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+      .rail-icon.active {
+        background: #fff;
+        border-color: #cbd5e1;
+        color: #0f172a;
+      }
+      .user-avatar-btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border-radius: 999px;
+        border: 1.5px solid #cbd5e1;
+        background: #1e293b;
+        color: #fff;
+        font-size: 10.5px;
+        font-weight: 700;
+        justify-content: center;
+      }
+      .user-avatar-btn:hover {
+        background: #0f172a;
+        border-color: #64748b;
+      }
+      .account-menu {
+        position: absolute;
+        left: 62px;
+        bottom: 6px;
+        z-index: 35;
+        width: 204px;
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .account-head {
+        padding: 6px 8px 8px;
+        border-bottom: 1px solid #f1f5f9;
+        margin-bottom: 3px;
+      }
+      .menu-item {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        border-radius: 5px;
+        padding: 6px 8px;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #334155;
+      }
+      .menu-item:hover {
+        background: #f1f5f9;
+      }
+      .menu-item.danger-item {
+        color: #be123c;
+      }
+      .menu-item.danger-item:hover {
+        background: #fff1f2;
+      }
+      .bot-avatar {
+        width: 30px;
+        height: 30px;
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .bot-avatar.sm {
+        width: 22px;
+        height: 22px;
+        font-size: 9px;
+      }
+      .bot-avatar.xl {
+        width: 54px;
+        height: 54px;
+        font-size: 18px;
+      }
+      .shape-squircle {
+        border-radius: 8px;
+      }
+      .bot-avatar.xl.shape-squircle {
+        border-radius: 14px;
+      }
+      .shape-circle {
+        border-radius: 999px;
+      }
+      .shape-diamond {
+        border-radius: 5px;
+        transform: rotate(45deg) scale(0.76);
+      }
+      .shape-diamond > span {
+        transform: rotate(-45deg);
+        display: inline-block;
+      }
+      .shape-hex {
+        clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+      }
+      .shape-triangle {
+        clip-path: polygon(50% 4%, 98% 92%, 2% 92%);
+      }
+      .shape-triangle > span {
+        margin-top: 7px;
+      }
+      /* Main Content & Right Settings Sidebar */
+      .main {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: #f8fafc;
+      }
+      .right-drawer {
+        width: 356px;
+        flex: none;
+        border-left: 1px solid #e2e8f0;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .drawer-head {
+        flex: none;
+        padding: 10px 12px 8px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .drawer-tabs {
+        display: flex;
+        gap: 3px;
+        background: #f1f5f9;
+        padding: 2px;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+      }
+      .drawer-tab {
+        flex: 1;
+        justify-content: center;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 4px 5px;
+        border-radius: 4px;
+        font-size: 10px;
+        color: #475569;
+      }
+      .drawer-tab.active {
+        background: #fff;
+        border-color: #cbd5e1;
+        color: #0f172a;
+        font-weight: 600;
+      }
+      .scroll {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+      }
+      /* Chat Tab (Single persistent desktop chat with bot, no New Chat) */
+      .chat-stream {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .msg-wrap {
+        max-width: 740px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .msg {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #fff;
+      }
+      .msg.user {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        align-self: flex-end;
+        max-width: 82%;
+      }
+      .msg.bot {
+        background: #fff;
+        align-self: flex-start;
+        width: 100%;
+      }
+      .msg-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 10px;
+        color: #64748b;
+      }
+      .msg-head-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .steps-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 5px 8px;
+        margin-bottom: 8px;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        background: #f8fafc;
+        font-size: 10px;
+        color: #475569;
+      }
+      .steps-detail {
+        margin: -4px 0 8px;
+        padding: 7px 9px;
+        border: 1px solid #e2e8f0;
+        border-top: 0;
+        border-radius: 0 0 5px 5px;
+        background: #fcfdff;
+        font-size: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .step-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .approval-card {
+        margin-top: 8px;
+        border: 1px solid #fcd34d;
+        background: #fffbeb;
+        border-radius: 6px;
+        padding: 10px 12px;
+      }
+      .approval-card.resolved {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+      }
+      .approval-args {
+        margin: 6px 0 8px;
+        padding: 6px 8px;
+        background: #fff;
+        border: 1px solid #fde68a;
+        border-radius: 4px;
+        font-size: 10px;
+        white-space: pre-wrap;
+        color: #334155;
+      }
+      .approval-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .composer-bar {
+        flex: none;
+        padding: 10px 20px 14px;
+        background: #fff;
+        border-top: 1px solid #e2e8f0;
+      }
+      .composer-inner {
+        max-width: 740px;
+        margin: 0 auto;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        padding: 8px 10px;
+      }
+      .composer-inner textarea {
+        border: 0;
+        padding: 0;
+        resize: none;
+        min-height: 36px;
+        max-height: 84px;
+        outline: none;
+      }
+      .composer-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid #f1f5f9;
+      }
+      .pill-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      /* Statistics, Sessions, Traces */
+      .pane-pad {
+        padding: 14px 18px;
+      }
+      .filter-bar {
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #fff;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .segments {
+        display: inline-flex;
+      }
+      .segments button {
+        border-radius: 0;
+        padding: 4px 8px;
+        font-size: 10px;
+        margin-left: -1px;
+      }
+      .segments button:first-child {
+        border-radius: 5px 0 0 5px;
+        margin-left: 0;
+      }
+      .segments button:last-child {
+        border-radius: 0 5px 5px 0;
+      }
+      .segments button.active {
+        background: #1e293b;
+        color: #fff;
+        border-color: #1e293b;
+        z-index: 1;
+      }
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .kpi {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 10px 12px;
+      }
+      .kpi-label {
+        font-size: 10px;
+        color: #64748b;
+        margin-bottom: 4px;
+      }
+      .kpi-val {
+        font-size: 17px;
+        font-weight: 700;
+        color: #0f172a;
+        letter-spacing: -0.4px;
+      }
+      .kpi-sub {
+        font-size: 9.5px;
+        color: #64748b;
+        margin-top: 3px;
+      }
+      .chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 11px 12px;
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 96px 1fr 82px;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 10.5px;
+      }
+      .bar-track {
+        height: 8px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 100%;
+        border-radius: 4px;
+      }
+      .split {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 330px minmax(0, 1fr);
+        overflow: hidden;
+      }
+      .split.trace-split {
+        grid-template-columns: 47% 53%;
+      }
+      .split-left {
+        border-right: 1px solid #e2e8f0;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .split-right {
+        background: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .list-row {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid #f1f5f9;
+        border-radius: 0;
+        background: #fff;
+        padding: 9px 12px;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-weight: 400;
+      }
+      .list-row:hover {
+        background: #f8fafc;
+      }
+      .list-row.active {
+        background: #f1f5f9;
+        box-shadow: inset 3px 0 0 #1e293b;
+      }
+      .row-between {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        width: 100%;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+      }
+      th {
+        text-align: left;
+        font-size: 10px;
+        font-weight: 600;
+        color: #64748b;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 7px 10px;
+        white-space: nowrap;
+      }
+      td {
+        padding: 7px 10px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 10.5px;
+        vertical-align: middle;
+      }
+      tr.clickable {
+        cursor: pointer;
+      }
+      tr.clickable:hover td {
+        background: #f8fafc;
+      }
+      .wf-header {
+        display: grid;
+        grid-template-columns: 1fr 180px 54px;
+        padding: 6px 10px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8fafc;
+        font-size: 9.5px;
+        font-weight: 600;
+        color: #64748b;
+      }
+      .wf-row {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid #f1f5f9;
+        border-radius: 0;
+        background: #fff;
+        padding: 7px 10px;
+        display: grid;
+        grid-template-columns: 1fr 180px 54px;
+        align-items: center;
+        gap: 6px;
+        text-align: left;
+        font-weight: 450;
+      }
+      .wf-row:hover {
+        background: #f8fafc;
+      }
+      .wf-row.active {
+        background: #eff6ff;
+      }
+      .wf-track {
+        position: relative;
+        height: 14px;
+        background: #f1f5f9;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .wf-bar {
+        position: absolute;
+        top: 2px;
+        height: 10px;
+        border-radius: 2px;
+        min-width: 4px;
+      }
+      .obs-type {
+        font-size: 8.5px;
+        font-weight: 700;
+        padding: 1px 4px;
+        border-radius: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .obs-agent {
+        background: #e2e8f0;
+        color: #1e293b;
+      }
+      .obs-gen {
+        background: #ede9fe;
+        color: #6d28d9;
+      }
+      .obs-tool {
+        background: #e0f2fe;
+        color: #0369a1;
+      }
+      .obs-retriever {
+        background: #d1fae5;
+        color: #047857;
+      }
+      .obs-event {
+        background: #fef3c7;
+        color: #b45309;
+      }
+      .payload-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        padding: 8px 10px;
+        font-size: 10px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        margin-bottom: 10px;
+      }
+      /* Square Connector Tiles (Grok Bot Desktop App Style) */
+      .tile-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+        max-width: 920px;
+      }
+      .conn-tile {
+        position: relative;
+        aspect-ratio: 1 / 1;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 14px 10px 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        text-align: center;
+        transition:
+          border-color 0.12s,
+          box-shadow 0.12s;
+      }
+      .conn-tile:hover {
+        border-color: #94a3b8;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+      }
+      .conn-tile.add-tile {
+        border-style: dashed;
+        border-width: 1.5px;
+        background: #f8fafc;
+        justify-content: center;
+        gap: 8px;
+      }
+      .tile-status-dot {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+      }
+      .tile-status-dot.connected {
+        background: #10b981;
+      }
+      .tile-status-dot.warn {
+        background: #f59e0b;
+      }
+      .tile-status-dot.off {
+        background: #cbd5e1;
+      }
+      .tile-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 11px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 6px;
+      }
+      .tile-name {
+        font-size: 11.5px;
+        font-weight: 650;
+        color: #0f172a;
+      }
+      .tile-sub {
+        font-size: 9.5px;
+        color: #64748b;
+        line-height: 1.3;
+      }
+      .tile-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 4px 8px;
+        font-size: 10px;
+      }
+      /* Forms & Controls */
+      .field-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 9px;
+      }
+      .field > span {
+        font-size: 10px;
+        font-weight: 600;
+        color: #475569;
+      }
+      .perm-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        padding: 6px 0;
+        border-top: 1px solid #f1f5f9;
+      }
+      .swatch {
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        border: 2px solid transparent;
+        padding: 0;
+      }
+      .swatch.active {
+        border-color: #0f172a;
+        box-shadow: 0 0 0 2px #fff inset;
+      }
+      .shape-pick {
+        width: 46px;
+        height: 46px;
+        padding: 0;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 10px;
+        background: #fff;
+        justify-content: center;
+      }
+      .shape-pick.active {
+        border-color: #0f172a;
+        background: #f1f5f9;
+      }
+      .side-label {
+        font-size: 9.5px;
+        font-weight: 650;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      /* Dialog & Toast */
+      dialog {
+        margin: auto;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 0;
+        width: 420px;
+        max-width: calc(100vw - 32px);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+        color: #1e293b;
+      }
+      dialog::backdrop {
+        background: rgba(15, 23, 42, 0.32);
+      }
+      .dlg-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .dlg-body {
+        padding: 14px;
+        max-height: 74vh;
+        overflow: auto;
+      }
+      .dlg-foot {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        padding: 10px 14px;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+      }
+      .toast {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        background: #0f172a;
+        color: #fff;
+        padding: 7px 12px;
+        border-radius: 6px;
+        font-size: 10.5px;
+        z-index: 40;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+      }
+      .empty-wrap {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .empty-card {
+        width: 520px;
+        max-width: 100%;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 22px;
+        text-align: center;
+      }
+      @media (max-width: 840px) {
+        .tile-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .kpi-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .chart-grid,
+        .split,
+        .split.trace-split {
+          grid-template-columns: 1fr;
+        }
+        .right-drawer {
+          width: 300px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <dialog id="dialog" aria-labelledby="dlg-title"></dialog>
+    <div id="toast-root" aria-live="polite"></div>
+
+    <script>
+      const COLORS = ['#2563eb', '#7c3aed', '#059669', '#d97706', '#e11d48', '#334155']
+      const SHAPES = ['squircle', 'circle', 'diamond', 'hex', 'triangle']
+
+      const REMOTE_SERVERS = [
+        {
+          id: 'prod-us',
+          name: 'prod-us (bots.difflab.internal)',
+          url: 'https://bots.difflab.internal',
+          status: 'Connected',
+        },
+        {
+          id: 'staging',
+          name: 'staging (staging-bots.difflab.internal)',
+          url: 'https://staging-bots.difflab.internal',
+          status: 'Connected',
+        },
+      ]
+
+      const CONNECTOR_ICONS = {
+        slack: {
+          bg: '#f5f3ff',
+          fg: '#6d28d9',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>`,
+        },
+        discord: {
+          bg: '#eef2ff',
+          fg: '#4f46e5',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><circle cx="9.5" cy="10" r="1"/><circle cx="14.5" cy="10" r="1"/></svg>`,
+        },
+        github: {
+          bg: '#f1f5f9',
+          fg: '#0f172a',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>`,
+        },
+        linear: {
+          bg: '#eff6ff',
+          fg: '#2563eb',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="6" y1="12" x2="12" y2="18"/><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/></svg>`,
+        },
+        'docs-mcp': {
+          bg: '#ecfdf5',
+          fg: '#059669',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+        },
+        'postgres-mcp': {
+          bg: '#fffbeb',
+          fg: '#d97706',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>`,
+        },
+        notion: {
+          bg: '#f8fafc',
+          fg: '#334155',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 16V8l6 8V8"/></svg>`,
+        },
+        gworkspace: {
+          bg: '#fef2f2',
+          fg: '#dc2626',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>`,
+        },
+        default: {
+          bg: '#f0f9ff',
+          fg: '#0284c7',
+          svg: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
+        },
+      }
+
+      const INITIAL_CONNECTORS = [
+        {
+          id: 'slack',
+          name: 'Slack',
+          category: 'Channels',
+          kind: 'OAuth + Socket',
+          status: 'Connected',
+          account: 'difflab-hq',
+          secretRef: 'keychain:slack-workspace-token',
+          tools: [
+            { id: 'read_thread', label: 'Read thread context' },
+            { id: 'post_message', label: 'Post message to channel' },
+            { id: 'add_reaction', label: 'Add emoji reaction' },
+          ],
+        },
+        {
+          id: 'discord',
+          name: 'Discord',
+          category: 'Channels',
+          kind: 'Bot Gateway',
+          status: 'Connected',
+          account: 'Diffagent Guild',
+          secretRef: 'keychain:discord-bot-token',
+          tools: [
+            { id: 'read_channel', label: 'Read channel messages' },
+            { id: 'send_reply', label: 'Send reply in thread' },
+          ],
+        },
+        {
+          id: 'github',
+          name: 'GitHub',
+          category: 'Tools & SaaS',
+          kind: 'OAuth App',
+          status: 'Connected',
+          account: 'difflab-io',
+          secretRef: 'keychain:github-oauth',
+          tools: [
+            { id: 'get_pr', label: 'Read pull request diff' },
+            { id: 'search_issues', label: 'Search repository issues' },
+            { id: 'create_issue', label: 'Create GitHub issue' },
+          ],
+        },
+        {
+          id: 'linear',
+          name: 'Linear',
+          category: 'Tools & SaaS',
+          kind: 'OAuth App',
+          status: 'Connected',
+          account: 'Difflab Eng',
+          secretRef: 'keychain:linear-oauth',
+          tools: [
+            { id: 'search_issues', label: 'Search issues and cycles' },
+            { id: 'create_issue', label: 'Create triage issue' },
+          ],
+        },
+        {
+          id: 'docs-mcp',
+          name: 'Docs MCP',
+          category: 'Custom MCP',
+          kind: 'MCP · stdio',
+          status: 'Connected',
+          account: 'Local docs server',
+          secretRef: 'none',
+          tools: [
+            { id: 'query_docs', label: 'Search local documentation' },
+            { id: 'get_page', label: 'Fetch documentation page' },
+          ],
+        },
+        {
+          id: 'postgres-mcp',
+          name: 'Analytics DB',
+          category: 'Custom MCP',
+          kind: 'MCP · HTTP',
+          status: 'Needs re-auth',
+          account: 'Read-only SQL',
+          secretRef: 'env:ANALYTICS_MCP_TOKEN',
+          tools: [{ id: 'run_readonly_sql', label: 'Run read-only SQL query' }],
+        },
+        {
+          id: 'notion',
+          name: 'Notion',
+          category: 'Tools & SaaS',
+          kind: 'OAuth App',
+          status: 'Not connected',
+          account: 'Team runbooks',
+          secretRef: 'unconfigured',
+          tools: [{ id: 'search_pages', label: 'Search Notion pages' }],
+        },
+        {
+          id: 'gworkspace',
+          name: 'Google Apps',
+          category: 'Tools & SaaS',
+          kind: 'OAuth App',
+          status: 'Not connected',
+          account: 'Gmail & Drive',
+          secretRef: 'unconfigured',
+          tools: [{ id: 'search_drive', label: 'Search Drive files' }],
+        },
+      ]
+
+      const INITIAL_BOTS = [
+        {
+          slug: 'support-triage',
+          name: 'Support Triage',
+          color: '#2563eb',
+          shape: 'squircle',
+          status: 'online',
+          runtimeMode: 'local',
+          remoteServer: 'prod-us',
+          model: 'claude-sonnet-4-6',
+          maxSteps: 8,
+          dailyBudgetUsd: 15,
+          instructions: `You are Support Triage for Diffagent.\n- Search Docs MCP and Linear before answering.\n- Cite documentation links and exact CLI flags.\n- Ask for human approval before posting to public Slack channels or creating Linear issues.`,
+          skills: [
+            {
+              slug: 'triage-linear',
+              summary: 'Match error codes against Linear issues and cite ticket IDs.',
+              enabled: true,
+            },
+            {
+              slug: 'docs-citation',
+              summary: 'Query Docs MCP and attach exact file and flag references.',
+              enabled: true,
+            },
+            {
+              slug: 'escalation-handoff',
+              summary: 'Format a structured on-call summary when a bug is new.',
+              enabled: false,
+            },
+          ],
+          channels: {
+            slack: {
+              enabled: true,
+              targets: '#support, #triage',
+              trigger: '@mention + DM',
+              tokenRef: 'keychain:slack-support-bot',
+            },
+            discord: {
+              enabled: true,
+              targets: '#help, #bot-testing',
+              trigger: '/ask + @mention',
+              tokenRef: 'keychain:discord-support-bot',
+            },
+            web: {
+              enabled: true,
+              endpoint: 'http://127.0.0.1:4170/v1/bots/support-triage/chat',
+              protocol: 'HTTP SSE + AG-UI',
+              origins: 'https://docs.diffagent.dev',
+            },
+          },
+          connectorPerms: {
+            slack: {
+              enabled: true,
+              tools: {
+                read_thread: 'allow',
+                post_message: 'ask',
+                add_reaction: 'allow',
+              },
+            },
+            discord: {
+              enabled: true,
+              tools: { read_channel: 'allow', send_reply: 'ask' },
+            },
+            linear: {
+              enabled: true,
+              tools: { search_issues: 'allow', create_issue: 'ask' },
+            },
+            'docs-mcp': {
+              enabled: true,
+              tools: { query_docs: 'allow', get_page: 'allow' },
+            },
+            github: {
+              enabled: false,
+              tools: {
+                get_pr: 'allow',
+                search_issues: 'allow',
+                create_issue: 'ask',
+              },
+            },
+          },
+          chatMessages: [
+            {
+              role: 'user',
+              author: 'Sam',
+              time: '19:38',
+              text: 'A user in #support says `diffagent open` failed on macOS with `not_found`. Check our docs and Linear for known issues, then draft a reply.',
+            },
+            {
+              role: 'bot',
+              time: '19:38',
+              traceId: 'tr_891a',
+              stepsOpen: false,
+              latency: '1.42s',
+              tokens: '2,840 tok',
+              cost: '$0.0041',
+              steps: [
+                {
+                  type: 'retriever',
+                  name: 'docs-mcp.query_docs',
+                  ms: '210ms',
+                  summary: '3 chunks · docs/environment.md',
+                },
+                {
+                  type: 'tool',
+                  name: 'linear.search_issues',
+                  ms: '340ms',
+                  summary: 'Matched DIF-118 (desktop binary lookup)',
+                },
+                {
+                  type: 'gen',
+                  name: 'claude-sonnet-4-6',
+                  ms: '820ms',
+                  summary: '1,920 in · 410 out · 510 cached',
+                },
+              ],
+              text: 'I found the cause in `docs/environment.md` and Linear issue `DIF-118`. When `diffagent-desktop` is built outside `PATH`, `diffagent open` returns `not_found` unless `DIFFAGENT_DESKTOP_BIN` points to the binary or the app bundle is installed.\n\nSuggested reply: ask the user to run `diffagent status --json` and verify whether `DIFFAGENT_DESKTOP_BIN` is set.',
+            },
+            {
+              role: 'user',
+              author: 'Sam',
+              time: '19:40',
+              text: 'Post that reply to #support and attach DIF-118.',
+            },
+            {
+              role: 'bot',
+              time: '19:40',
+              traceId: 'tr_892b',
+              stepsOpen: false,
+              latency: '1.26s',
+              tokens: '2,280 tok',
+              cost: '$0.0042',
+              steps: [
+                {
+                  type: 'tool',
+                  name: 'slack.read_thread',
+                  ms: '180ms',
+                  summary: '#support · thread 1732149.401',
+                },
+                {
+                  type: 'event',
+                  name: 'approval.requested',
+                  ms: '4ms',
+                  summary: 'Policy gate: slack.post_message = ask',
+                },
+              ],
+              text: 'Ready to post the troubleshooting reply to `#support` with a link to `DIF-118`. Waiting for your approval.',
+              approval: {
+                id: 'appr_1',
+                connector: 'Slack',
+                tool: 'slack.post_message',
+                status: 'pending',
+                args: '{\n  "channel": "#support",\n  "thread_ts": "1732149.401",\n  "text": "Run `diffagent status --json` and check if `DIFFAGENT_DESKTOP_BIN` is set. Tracked in DIF-118."\n}',
+              },
+            },
+          ],
+          sessions: [
+            {
+              id: 'sess_app_401',
+              title: 'Desktop chat · Slack thread escalation',
+              channel: 'Desktop',
+              channelDetail: 'Local harness',
+              user: 'Sam',
+              status: 'Active',
+              updated: '2m ago',
+              latencyMs: 2680,
+              tokens: 5120,
+              cost: 0.0083,
+              messages: [
+                {
+                  role: 'user',
+                  author: 'Sam',
+                  time: '19:38',
+                  text: 'A user in #support says `diffagent open` failed on macOS with `not_found`. Check our docs and Linear.',
+                },
+                {
+                  role: 'bot',
+                  time: '19:38',
+                  traceId: 'tr_891a',
+                  latency: '1.42s',
+                  cost: '$0.0041',
+                  text: 'Found cause in `docs/environment.md` and `DIF-118`. Ask the user to verify `DIFFAGENT_DESKTOP_BIN`.',
+                },
+              ],
+            },
+            {
+              id: 'sess_slk_91a2',
+              title: 'Slack · #support · OAuth refresh error',
+              channel: 'Slack',
+              channelDetail: '#support · thread-482',
+              user: '@maya',
+              status: 'Completed',
+              updated: '18m ago',
+              latencyMs: 3140,
+              tokens: 4610,
+              cost: 0.0074,
+              messages: [
+                {
+                  role: 'user',
+                  author: '@maya',
+                  time: '19:21',
+                  text: 'Why did our Analytics DB MCP connector show `Needs re-auth` after rotating the token?',
+                },
+                {
+                  role: 'bot',
+                  time: '19:21',
+                  traceId: 'tr_887c',
+                  latency: '1.61s',
+                  cost: '$0.0039',
+                  text: 'Streamable HTTP MCP connectors keep a keychain or environment reference. Open Connectors from the left rail, click Reconnect, and reload the bot.',
+                },
+              ],
+            },
+            {
+              id: 'sess_dsc_44f1',
+              title: 'Discord · #help · declarative YAML schema',
+              channel: 'Discord',
+              channelDetail: '#help · guild-community',
+              user: 'dev_kieran',
+              status: 'Completed',
+              updated: '1h ago',
+              latencyMs: 1120,
+              tokens: 1890,
+              cost: 0.0028,
+              messages: [
+                {
+                  role: 'user',
+                  author: 'dev_kieran',
+                  time: '18:35',
+                  text: 'Where do local bots and skills live on disk? Can I commit them to Git?',
+                },
+                {
+                  role: 'bot',
+                  time: '18:35',
+                  traceId: 'tr_881d',
+                  latency: '1.12s',
+                  cost: '$0.0028',
+                  text: 'Local bots live at `~/.diffagent/bots/{name}/` with `bot.yaml`, `INSTRUCTIONS.md`, and `skills/{skill}/SKILL.md`. Secrets stay in keychain or env refs.',
+                },
+              ],
+            },
+            {
+              id: 'sess_web_12e9',
+              title: 'Web widget · docs.diffagent.dev · rate limit',
+              channel: 'Web',
+              channelDetail: 'docs.diffagent.dev',
+              user: 'anon_83f',
+              status: 'Error',
+              updated: '3h ago',
+              latencyMs: 4820,
+              tokens: 3420,
+              cost: 0.0051,
+              messages: [
+                {
+                  role: 'user',
+                  author: 'anon_83f',
+                  time: '16:12',
+                  text: 'Show me the latest open Linear tickets for observability.',
+                },
+                {
+                  role: 'bot',
+                  time: '16:12',
+                  traceId: 'tr_874e',
+                  latency: '4.82s',
+                  cost: '$0.0051',
+                  text: 'I hit a Linear API rate limit while fetching issues. Please retry in a minute or inspect the trace.',
+                },
+              ],
+            },
+          ],
+        },
+        {
+          slug: 'pr-concierge',
+          name: 'PR Concierge',
+          color: '#7c3aed',
+          shape: 'diamond',
+          status: 'online',
+          runtimeMode: 'remote',
+          remoteServer: 'prod-us',
+          model: 'gpt-5',
+          maxSteps: 6,
+          dailyBudgetUsd: 10,
+          instructions: `You are PR Concierge.\n- Read pull request diffs through the GitHub connector.\n- Highlight risky schema or permission changes.`,
+          skills: [
+            {
+              slug: 'diff-risk-scan',
+              summary: 'Flag schema migrations, auth edits, and deleted tests.',
+              enabled: true,
+            },
+          ],
+          channels: {
+            slack: {
+              enabled: true,
+              targets: '#eng-reviews',
+              trigger: '@mention',
+              tokenRef: 'keychain:slack-pr-bot',
+            },
+            discord: { enabled: false, targets: '', trigger: '/ask', tokenRef: '' },
+            web: {
+              enabled: false,
+              endpoint: 'https://bots.difflab.internal/v1/bots/pr-concierge/chat',
+              protocol: 'HTTP SSE',
+              origins: '',
+            },
+          },
+          connectorPerms: {
+            github: {
+              enabled: true,
+              tools: {
+                get_pr: 'allow',
+                search_issues: 'allow',
+                create_issue: 'ask',
+              },
+            },
+            slack: {
+              enabled: true,
+              tools: {
+                read_thread: 'allow',
+                post_message: 'allow',
+                add_reaction: 'allow',
+              },
+            },
+          },
+          chatMessages: [
+            {
+              role: 'user',
+              author: 'Sam',
+              time: '19:16',
+              text: 'Summarize PR #14 and flag any breaking changes to `bot.yaml`.',
+            },
+            {
+              role: 'bot',
+              time: '19:16',
+              traceId: 'tr_891a',
+              stepsOpen: false,
+              latency: '1.89s',
+              tokens: '3,180 tok',
+              cost: '$0.0059',
+              steps: [
+                {
+                  type: 'tool',
+                  name: 'github.get_pr',
+                  ms: '420ms',
+                  summary: 'PR #14 · 6 files changed',
+                },
+              ],
+              text: 'PR #14 adds `channels.web.origins` as an optional list in `bot.yaml`. Existing bot manifests remain valid with no migration required.',
+            },
+          ],
+          sessions: [],
+        },
+        {
+          slug: 'docs-helper',
+          name: 'Docs Helper',
+          color: '#059669',
+          shape: 'circle',
+          status: 'idle',
+          runtimeMode: 'remote',
+          remoteServer: 'prod-us',
+          model: 'grok-4',
+          maxSteps: 5,
+          dailyBudgetUsd: 8,
+          instructions: `You are Docs Helper. Answer strictly from Docs MCP results.`,
+          skills: [
+            {
+              slug: 'docs-citation',
+              summary: 'Link every answer to a markdown doc path.',
+              enabled: true,
+            },
+          ],
+          channels: {
+            slack: { enabled: false, targets: '', trigger: '@mention', tokenRef: '' },
+            discord: {
+              enabled: true,
+              targets: '#docs',
+              trigger: '/docs',
+              tokenRef: 'keychain:discord-docs-bot',
+            },
+            web: {
+              enabled: true,
+              endpoint: 'https://bots.difflab.internal/v1/bots/docs-helper/chat',
+              protocol: 'HTTP SSE + AG-UI',
+              origins: 'https://docs.diffagent.dev',
+            },
+          },
+          connectorPerms: {
+            'docs-mcp': {
+              enabled: true,
+              tools: { query_docs: 'allow', get_page: 'allow' },
+            },
+          },
+          chatMessages: [],
+          sessions: [],
+        },
+        {
+          slug: 'release-notes',
+          name: 'Release Notes',
+          color: '#475569',
+          shape: 'hex',
+          status: 'paused',
+          runtimeMode: 'local',
+          remoteServer: 'staging',
+          model: 'ollama/qwen3-32b',
+          maxSteps: 6,
+          dailyBudgetUsd: 5,
+          instructions: `Summarize merged PRs into concise user-facing release notes.`,
+          skills: [],
+          channels: {
+            slack: { enabled: false, targets: '', trigger: '@mention', tokenRef: '' },
+            discord: { enabled: false, targets: '', trigger: '/ask', tokenRef: '' },
+            web: {
+              enabled: false,
+              endpoint: 'http://127.0.0.1:4170/v1/bots/release-notes/chat',
+              protocol: 'HTTP SSE',
+              origins: '',
+            },
+          },
+          connectorPerms: {},
+          chatMessages: [],
+          sessions: [],
+        },
+      ]
+
+      const TRACES = [
+        {
+          id: 'tr_891a',
+          name: 'support.triage.reply',
+          time: '19:38:14',
+          channel: 'Desktop',
+          sessionId: 'sess_app_401',
+          status: 'OK',
+          latencyMs: 1420,
+          tokens: 2840,
+          cost: 0.0041,
+          tags: ['triage', 'macos', 'DIF-118'],
+          input:
+            'A user in #support says `diffagent open` failed on macOS with `not_found`. Check our docs and Linear for known issues, then draft a reply.',
+          observations: [
+            {
+              id: 'obs_1',
+              depth: 0,
+              type: 'agent',
+              name: 'support-triage.run',
+              startMs: 0,
+              durMs: 1420,
+              model: 'agent-loop',
+              tokens: { in: 1920, out: 410, cached: 510 },
+              cost: 0.0041,
+              input: {
+                channel: 'desktop',
+                session_id: 'sess_app_401',
+                prompt:
+                  'A user in #support says `diffagent open` failed on macOS with `not_found`.',
+              },
+              output: {
+                reply:
+                  'Found cause in docs/environment.md and DIF-118. Verify DIFFAGENT_DESKTOP_BIN.',
+                steps: 3,
+              },
+              meta: {
+                bot: 'support-triage',
+                harness: 'local',
+                skills_loaded: ['triage-linear', 'docs-citation'],
+              },
+            },
+            {
+              id: 'obs_2',
+              depth: 1,
+              type: 'retriever',
+              name: 'docs-mcp.query_docs',
+              startMs: 35,
+              durMs: 210,
+              model: 'mcp:docs-mcp',
+              tokens: null,
+              cost: 0,
+              input: { query: 'diffagent open not_found DIFFAGENT_DESKTOP_BIN' },
+              output: {
+                hits: [
+                  'docs/environment.md#L12-L28 (score 0.94)',
+                  'docs/architecture/index.md#L92 (score 0.86)',
+                ],
+              },
+              meta: { transport: 'stdio', connector: 'docs-mcp', policy: 'allow' },
+            },
+            {
+              id: 'obs_3',
+              depth: 1,
+              type: 'tool',
+              name: 'linear.search_issues',
+              startMs: 255,
+              durMs: 340,
+              model: 'oauth:linear',
+              tokens: null,
+              cost: 0,
+              input: { team: 'DIF', query: 'diffagent open not_found macOS' },
+              output: {
+                issues: [
+                  {
+                    id: 'DIF-118',
+                    title: 'Lookup desktop app bundle when PATH omits binary',
+                    state: 'In Progress',
+                  },
+                ],
+              },
+              meta: { connector: 'linear', policy: 'allow', status: 200 },
+            },
+            {
+              id: 'obs_4',
+              depth: 1,
+              type: 'gen',
+              name: 'claude-sonnet-4-6',
+              startMs: 600,
+              durMs: 810,
+              model: 'claude-sonnet-4-6',
+              tokens: { in: 1920, out: 410, cached: 510 },
+              cost: 0.0041,
+              input: {
+                system: 'You are Support Triage for Diffagent. Cite docs and Linear issues.',
+                messages: [
+                  { role: 'user', content: 'diffagent open failed with not_found' },
+                  { role: 'tool', content: 'docs/environment.md + DIF-118' },
+                ],
+              },
+              output: {
+                content:
+                  'I found the cause in `docs/environment.md` and Linear issue `DIF-118`. Ask the user to run `diffagent status --json` and verify `DIFFAGENT_DESKTOP_BIN`.',
+                stop_reason: 'end_turn',
+              },
+              meta: {
+                provider: 'anthropic',
+                ttft_ms: 215,
+                temperature: 0.2,
+              },
+            },
+          ],
+        },
+        {
+          id: 'tr_892b',
+          name: 'slack.post_reply_gate',
+          time: '19:40:02',
+          channel: 'Desktop',
+          sessionId: 'sess_app_401',
+          status: 'Awaiting approval',
+          latencyMs: 1260,
+          tokens: 2280,
+          cost: 0.0042,
+          tags: ['approval', 'slack'],
+          input: 'Post that reply to #support and attach DIF-118.',
+          observations: [
+            {
+              id: 'obs_b1',
+              depth: 0,
+              type: 'agent',
+              name: 'support-triage.run',
+              startMs: 0,
+              durMs: 1260,
+              model: 'agent-loop',
+              tokens: { in: 1840, out: 440, cached: 0 },
+              cost: 0.0042,
+              input: { prompt: 'Post that reply to #support and attach DIF-118.' },
+              output: { status: 'paused_for_approval', tool: 'slack.post_message' },
+              meta: { bot: 'support-triage', approval_id: 'appr_1' },
+            },
+            {
+              id: 'obs_b2',
+              depth: 1,
+              type: 'tool',
+              name: 'slack.read_thread',
+              startMs: 40,
+              durMs: 180,
+              model: 'oauth:slack',
+              tokens: null,
+              cost: 0,
+              input: { channel: '#support', thread_ts: '1732149.401' },
+              output: { messages: 3, author: '@alex' },
+              meta: { connector: 'slack', policy: 'allow' },
+            },
+            {
+              id: 'obs_b3',
+              depth: 1,
+              type: 'gen',
+              name: 'claude-sonnet-4-6',
+              startMs: 240,
+              durMs: 990,
+              model: 'claude-sonnet-4-6',
+              tokens: { in: 1840, out: 440, cached: 0 },
+              cost: 0.0042,
+              input: { messages: ['Read thread -> prepare slack.post_message'] },
+              output: { tool_use: 'slack.post_message', channel: '#support' },
+              meta: { provider: 'anthropic', ttft_ms: 240 },
+            },
+            {
+              id: 'obs_b4',
+              depth: 1,
+              type: 'event',
+              name: 'approval.requested',
+              startMs: 1245,
+              durMs: 15,
+              model: 'policy-engine',
+              tokens: null,
+              cost: 0,
+              input: { tool: 'slack.post_message', rule: 'ask' },
+              output: { delivered_to: 'desktop-console' },
+              meta: { connector: 'slack', approval_id: 'appr_1' },
+            },
+          ],
+        },
+        {
+          id: 'tr_887c',
+          name: 'slack.thread_answer',
+          time: '19:21:08',
+          channel: 'Slack',
+          sessionId: 'sess_slk_91a2',
+          status: 'OK',
+          latencyMs: 1610,
+          tokens: 2410,
+          cost: 0.0039,
+          tags: ['slack', 'connectors'],
+          input:
+            'Why did our Analytics DB MCP connector show `Needs re-auth` after rotating the token?',
+          observations: [
+            {
+              id: 'obs_c1',
+              depth: 0,
+              type: 'agent',
+              name: 'support-triage.run',
+              startMs: 0,
+              durMs: 1610,
+              model: 'agent-loop',
+              tokens: { in: 1680, out: 330, cached: 400 },
+              cost: 0.0039,
+              input: { channel: 'slack:#support', user: '@maya' },
+              output: { reply: 'Open Connectors and click Reconnect.' },
+              meta: { bot: 'support-triage' },
+            },
+          ],
+        },
+        {
+          id: 'tr_881d',
+          name: 'discord.slash_ask',
+          time: '18:35:44',
+          channel: 'Discord',
+          sessionId: 'sess_dsc_44f1',
+          status: 'OK',
+          latencyMs: 1120,
+          tokens: 1890,
+          cost: 0.0028,
+          tags: ['discord', 'skills'],
+          input: 'Where do local bots and skills live on disk? Can I commit them to Git?',
+          observations: [
+            {
+              id: 'obs_d1',
+              depth: 0,
+              type: 'agent',
+              name: 'support-triage.run',
+              startMs: 0,
+              durMs: 1120,
+              model: 'agent-loop',
+              tokens: { in: 1410, out: 280, cached: 200 },
+              cost: 0.0028,
+              input: { channel: 'discord:#help', user: 'dev_kieran' },
+              output: { reply: '~/.diffagent/bots/{name}/ with skills/' },
+              meta: { bot: 'support-triage' },
+            },
+          ],
+        },
+        {
+          id: 'tr_874e',
+          name: 'web.widget_chat',
+          time: '16:12:19',
+          channel: 'Web',
+          sessionId: 'sess_web_12e9',
+          status: 'Error',
+          latencyMs: 4820,
+          tokens: 3420,
+          cost: 0.0051,
+          tags: ['web', 'rate-limit', 'linear'],
+          input: 'Show me the latest open Linear tickets for observability.',
+          observations: [
+            {
+              id: 'obs_e1',
+              depth: 0,
+              type: 'agent',
+              name: 'support-triage.run',
+              startMs: 0,
+              durMs: 4820,
+              model: 'agent-loop',
+              tokens: { in: 2900, out: 520, cached: 0 },
+              cost: 0.0051,
+              input: { channel: 'web:docs.diffagent.dev' },
+              output: { error: 'Linear HTTP 429 rate_limited' },
+              meta: { status: 'error', retries: 2 },
+            },
+            {
+              id: 'obs_e2',
+              depth: 1,
+              type: 'tool',
+              name: 'linear.search_issues',
+              startMs: 120,
+              durMs: 4110,
+              model: 'oauth:linear',
+              tokens: null,
+              cost: 0,
+              input: { query: 'observability' },
+              output: { error: 'HTTP 429 Too Many Requests', retry_after: 60 },
+              meta: { connector: 'linear', status: 429 },
+            },
+          ],
+        },
+      ]
+
+      const STATS_DATA = {
+        '24h': {
+          traces: '186',
+          tracesSub: '+8% vs prior 24h',
+          sessions: '54',
+          sessionsSub: '4 active channels',
+          latency: '1.12s / 2.94s',
+          latencySub: 'p50 / p95 wall clock',
+          cost: '$2.64',
+          costSub: '684k total tokens',
+          errors: '1.1%',
+          errorsSub: '2 errors · 4 approvals',
+          daily: [24, 31, 28, 36, 29, 38],
+          errDaily: [0, 1, 0, 0, 1, 0],
+          labels: ['00h', '04h', '08h', '12h', '16h', '20h'],
+        },
+        '7d': {
+          traces: '1,284',
+          tracesSub: '+14% vs prior 7d',
+          sessions: '342',
+          sessionsSub: 'Slack 48% · Web 27% · Discord 16%',
+          latency: '1.18s / 3.42s',
+          latencySub: 'p50 / p95 wall clock',
+          cost: '$18.42',
+          costSub: '4.82M total tokens',
+          errors: '1.4%',
+          errorsSub: '18 errors · 29 approvals',
+          daily: [148, 172, 194, 166, 218, 204, 182],
+          errDaily: [2, 3, 4, 1, 3, 2, 3],
+          labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        },
+        '30d': {
+          traces: '5,410',
+          tracesSub: '+29% vs prior 30d',
+          sessions: '1,408',
+          sessionsSub: 'All channels healthy',
+          latency: '1.24s / 3.68s',
+          latencySub: 'p50 / p95 wall clock',
+          cost: '$74.90',
+          costSub: '19.6M total tokens',
+          errors: '1.6%',
+          errorsSub: '87 errors · 112 approvals',
+          daily: [710, 820, 940, 890, 1020, 1030],
+          errDaily: [12, 14, 19, 11, 16, 15],
+          labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'Now'],
+        },
+      }
+
+      const state = {
+        view: 'bot', // 'bot' | 'user-connectors' | 'user-settings' | 'empty'
+        bots: structuredClone(INITIAL_BOTS),
+        connectors: structuredClone(INITIAL_CONNECTORS),
+        selectedBot: 'support-triage',
+        tab: 'chat', // 'chat' | 'stats' | 'sessions' | 'traces'
+        settingsOpen: false,
+        botSettingsSection: 'general', // 'general' | 'skills' | 'connectors' | 'channels' | 'files'
+        accountMenuOpen: false,
+        selectedSessionId: 'sess_slk_91a2',
+        statsRange: '7d',
+        statsChannel: 'All',
+        sessionSearch: '',
+        sessionChannel: 'All',
+        traceSearch: '',
+        traceStatus: 'All',
+        traceChannel: 'All',
+        selectedTraceId: null,
+        traceViewMode: 'waterfall',
+        selectedObsId: null,
+        obsTab: 'io',
+        connectorFilter: 'All',
+        draftMessage: '',
+        newBotDraft: {
+          name: 'Incident Helper',
+          shape: 'squircle',
+          color: '#d97706',
+          runtimeMode: 'local',
+          remoteServer: 'prod-us',
+        },
+        userSettings: {
+          homeDir: '~/.diffagent',
+          retentionDays: '30',
+          autoReload: true,
+          theme: 'Light',
+          defaultWritePolicy: 'Ask approval',
+        },
+      }
+
+      const app = document.getElementById('app')
+      const dialog = document.getElementById('dialog')
+
+      const esc = (v) =>
+        String(v ?? '').replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;',
+            })[c],
+        )
+
+      const currentBot = () => state.bots.find((b) => b.slug === state.selectedBot) || state.bots[0]
+
+      function botLocation(bot) {
+        if (bot.runtimeMode === 'remote') {
+          const srv = REMOTE_SERVERS.find((s) => s.id === bot.remoteServer)
+          return `${srv ? srv.url : 'https://bots.difflab.internal'}/${bot.slug}`
+        }
+        return `~/.diffagent/bots/${bot.slug}`
+      }
+
+      function botAvatar(bot, size = '') {
+        const initials = (bot.name || 'NB')
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((w) => w[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase()
+        return `<span class="bot-avatar ${size} shape-${esc(bot.shape)}" style="background:${esc(bot.color)}" aria-hidden="true"><span>${esc(initials || 'NB')}</span></span>`
+      }
+
+      function botYamlPreview(bot) {
+        const enabledConns = Object.entries(bot.connectorPerms)
+          .filter(([, cfg]) => cfg.enabled)
+          .map(([id, cfg]) => {
+            const tools = Object.entries(cfg.tools)
+              .map(([t, p]) => `      ${t}: ${p}`)
+              .join('\n')
+            return `  ${id}:\n    tools:\n${tools}`
+          })
+          .join('\n')
+        const skillsYaml = bot.skills.length
+          ? bot.skills
+              .map((sk) => `  - ./skills/${sk.slug}/SKILL.md${sk.enabled ? '' : ' # disabled'}`)
+              .join('\n')
+          : '  []'
+        const harnessBlock =
+          bot.runtimeMode === 'remote'
+            ? `harness:\n  mode: remote\n  server: ${bot.remoteServer}`
+            : `harness:\n  mode: local`
+        return `schema: diffagent.bot/v1
+name: ${bot.name}
+avatar:
+  shape: ${bot.shape}
+  color: "${bot.color}"
+${harnessBlock}
+runtime:
+  model: ${bot.model}
+  max_steps: ${bot.maxSteps}
+  daily_budget_usd: ${bot.dailyBudgetUsd}
+instructions: ./INSTRUCTIONS.md
+skills:
+${skillsYaml}
+channels:
+  slack:
+    enabled: ${bot.channels.slack.enabled}
+    targets: "${bot.channels.slack.targets}"
+  discord:
+    enabled: ${bot.channels.discord.enabled}
+    targets: "${bot.channels.discord.targets}"
+  web:
+    enabled: ${bot.channels.web.enabled}
+    origins: "${bot.channels.web.origins}"
+connectors:
+${enabledConns || '  {}'}`
+      }
+
+      function notify(msg) {
+        const root = document.getElementById('toast-root')
+        root.innerHTML = DOMPurify.sanitize(`<div class="toast" role="status">${esc(msg)}</div>`)
+        clearTimeout(notify._t)
+        notify._t = setTimeout(() => {
+          root.innerHTML = ''
+        }, 2600)
+      }
+
+      function showDialog(title, bodyHtml, footHtml) {
+        dialog.innerHTML = DOMPurify.sanitize(
+          `<div class="dlg-head"><h2 id="dlg-title">${esc(title)}</h2><button type="button" class="quiet" data-action="close-dialog" aria-label="Close dialog">✕</button></div><div class="dlg-body">${bodyHtml}</div><div class="dlg-foot">${footHtml}</div>`,
+          {
+            ADD_ATTR: ['form', 'data-action', 'data-nb-shape', 'data-nb-color', 'data-nb-runtime'],
+          },
+        )
+        if (!dialog.open) dialog.showModal()
+      }
+
+      function closeDialog() {
+        if (dialog.open) dialog.close()
+      }
+
+      function renderTopbar() {
+        const bot = currentBot()
+        const isBot = state.view === 'bot'
+        const tabs = [
+          ['chat', 'Chat'],
+          ['stats', 'Stats'],
+          ['sessions', 'Sessions'],
+          ['traces', 'Traces'],
+        ]
+        const runtimePill =
+          bot.runtimeMode === 'remote'
+            ? `<span class="badge violet">Remote · ${esc(bot.remoteServer)}</span>`
+            : `<span class="badge blue">Local</span>`
+
+        return `<header class="topbar">
+          <div class="top-left">
+            <a class="brand-lockup" href="#chat" aria-label="Diffagent">
+              <span class="brand-mark">da</span>
+              <span class="brand-text">diffagent</span>
+            </a>
+            <span class="top-divider"></span>
+            ${
+              isBot
+                ? `<div class="top-bot-info">
+                    ${botAvatar(bot, 'sm')}
+                    <span class="top-title">${esc(bot.name)}</span>
+                    ${runtimePill}
+                  </div>`
+                : `<span class="top-title">${state.view === 'user-connectors' ? 'Connectors' : state.view === 'user-settings' ? 'User settings' : 'Welcome'}</span>`
+            }
+          </div>
+          <div class="top-center">
+            ${
+              isBot
+                ? `<nav class="top-tabs" aria-label="Bot console sections">
+                    ${tabs
+                      .map(
+                        ([id, label]) =>
+                          `<button type="button" class="tab-btn ${state.tab === id ? 'active' : ''}" data-tab="${id}" aria-pressed="${state.tab === id}">${label}</button>`,
+                      )
+                      .join('')}
+                  </nav>`
+                : ''
+            }
+          </div>
+          <div class="top-right">
+            <div class="hs-dropdown relative inline-flex">
+              <button type="button" class="hs-dropdown-toggle quiet" style="font-size:10px;padding:4px 7px" aria-haspopup="menu" aria-expanded="false">States ⌄</button>
+              <div class="hs-dropdown-menu absolute right-0 top-full z-30 mt-1 hidden min-w-44 rounded border border-slate-200 bg-white p-1 shadow-md" role="menu">
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#chat" role="menuitem">Chat (local harness)</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#chat-remote" role="menuitem">Chat (remote server)</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#chat-approval" role="menuitem">Chat approval gate</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#new-bot" role="menuitem">Create bot dialog</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#stats" role="menuitem">Stats</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#sessions" role="menuitem">Sessions</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#traces" role="menuitem">Traces</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#trace-detail" role="menuitem">Trace waterfall</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#bot-settings" role="menuitem">Sidebar · General</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#bot-skills" role="menuitem">Sidebar · Skills</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#bot-connectors" role="menuitem">Sidebar · Connectors</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#bot-channels" role="menuitem">Sidebar · Channels</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#bot-files" role="menuitem">Sidebar · Files</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#user-connectors" role="menuitem">Connectors tiles</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#user-menu" role="menuitem">User avatar menu</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#user-settings" role="menuitem">User settings</a>
+                <a class="block rounded px-2 py-1.5 text-[10.5px] hover:bg-slate-100" href="#empty" role="menuitem">Empty home</a>
+              </div>
+            </div>
+            ${
+              isBot
+                ? `<button type="button" class="${state.settingsOpen ? 'primary' : ''}" data-action="toggle-bot-settings" aria-expanded="${state.settingsOpen}" aria-controls="bot-settings-drawer">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                    Settings
+                  </button>`
+                : state.view === 'user-connectors'
+                  ? `<button type="button" class="primary" data-action="open-add-mcp">＋ Custom MCP</button>`
+                  : state.view === 'user-settings'
+                    ? `<button type="button" class="primary" data-action="save-user-settings">Save settings</button>`
+                    : ''
+            }
+          </div>
+        </header>`
+      }
+
+      function renderRail() {
+        const bots = state.view === 'empty' ? [] : state.bots
+        const botBtn = (b) => {
+          const active = state.view === 'bot' && state.selectedBot === b.slug
+          const label = `${b.name} (${b.runtimeMode === 'remote' ? `Remote · ${b.remoteServer}` : 'Local harness'})`
+          return `<button type="button" class="rail-slot ${active ? 'active' : ''} ${b.status === 'paused' ? 'paused' : ''}" data-select-bot="${esc(b.slug)}" aria-label="${esc(label)}" title="${esc(label)}" aria-current="${active ? 'page' : 'false'}">
+            ${botAvatar(b)}
+            <span class="rail-dot ${esc(b.status)}" aria-hidden="true"></span>
+          </button>`
+        }
+
+        return `<aside class="rail" aria-label="Bots and user navigation">
+          <div class="rail-bots">
+            ${bots.map(botBtn).join('')}
+            <button type="button" class="rail-add" data-action="open-new-bot" aria-label="New bot" title="New bot">＋</button>
+          </div>
+          <div class="rail-footer">
+            <button type="button" class="rail-icon ${state.view === 'user-connectors' ? 'active' : ''}" data-action="open-user-connectors" aria-label="Connectors" title="Connectors">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            </button>
+            <button type="button" class="user-avatar-btn" data-action="toggle-account-menu" aria-label="Account menu" aria-expanded="${state.accountMenuOpen}" title="Sam">SA</button>
+            ${
+              state.accountMenuOpen
+                ? `<div class="account-menu" role="menu" aria-label="Account actions">
+                    <div class="account-head">
+                      <div style="font-weight:650;font-size:11.5px;color:#0f172a">Sam Kapoor</div>
+                      <div class="muted" style="font-size:10px">sam@difflab.io</div>
+                    </div>
+                    <button type="button" class="menu-item" data-action="open-user-settings" role="menuitem"><span>User settings</span><span class="muted" style="font-size:10px">⌘,</span></button>
+                    <button type="button" class="menu-item" data-action="open-user-connectors" role="menuitem"><span>Connectors</span><span class="badge">${state.connectors.filter((c) => c.status === 'Connected').length}</span></button>
+                    <button type="button" class="menu-item" data-action="open-user-settings" role="menuitem"><span>Remote servers</span><span class="badge green">${REMOTE_SERVERS.length}</span></button>
+                    <div style="height:1px;background:#f1f5f9;margin:3px 0"></div>
+                    <button type="button" class="menu-item danger-item" data-action="sign-out" role="menuitem"><span>Log out</span></button>
+                  </div>`
+                : ''
+            }
+          </div>
+        </aside>`
+      }
+
+      function renderChatTab(bot) {
+        const messages = bot.chatMessages
+        const enabledConns = Object.entries(bot.connectorPerms)
+          .filter(([, cfg]) => cfg.enabled)
+          .map(([id]) => state.connectors.find((c) => c.id === id)?.name || id)
+        const activeSkills = bot.skills.filter((s) => s.enabled).length
+
+        const msgHtml =
+          messages.length === 0
+            ? `<div class="empty-wrap"><div class="empty-card">${botAvatar(bot, 'xl')}<h2 style="margin-top:10px">Chat with ${esc(bot.name)}</h2><p class="muted" style="margin-top:6px">Send a message to start working with ${esc(bot.name)}, or open Settings on the right to configure skills, connectors, and channels.</p></div></div>`
+            : messages
+                .map((m, idx) => {
+                  if (m.role === 'user') {
+                    return `<div class="msg user">
+                      <div class="msg-head"><strong>${esc(m.author || 'Sam')}</strong><span>${esc(m.time)}</span></div>
+                      <p>${esc(m.text)}</p>
+                    </div>`
+                  }
+                  const approval = m.approval
+                  return `<div class="msg bot">
+                    <div class="msg-head">
+                      <span class="msg-head-left">${botAvatar(bot, 'sm')}<strong>${esc(bot.name)}</strong><span class="badge">${esc(m.latency)}</span><span class="badge">${esc(m.tokens)}</span><span class="badge">${esc(m.cost)}</span></span>
+                      <span>${esc(m.time)}</span>
+                    </div>
+                    ${
+                      m.steps?.length
+                        ? `<div class="steps-bar">
+                            <button type="button" class="quiet" style="padding:1px 4px;font-size:10px" data-toggle-steps="${idx}">${m.stepsOpen ? '▾' : '▸'} ${m.steps.length} execution steps</button>
+                            <button type="button" class="quiet" style="padding:1px 5px;font-size:10px;color:#0369a1" data-open-trace="${esc(m.traceId || 'tr_891a')}">Inspect trace →</button>
+                          </div>
+                          ${
+                            m.stepsOpen
+                              ? `<div class="steps-detail">${m.steps
+                                  .map(
+                                    (s) => `<div class="step-row">
+                                      <span><span class="obs-type obs-${esc(s.type)}">${esc(s.type)}</span> <span class="mono">${esc(s.name)}</span> <span class="muted">· ${esc(s.summary)}</span></span>
+                                      <span class="mono muted">${esc(s.ms)}</span>
+                                    </div>`,
+                                  )
+                                  .join('')}</div>`
+                              : ''
+                          }`
+                        : ''
+                    }
+                    <p style="white-space:pre-line">${esc(m.text)}</p>
+                    ${
+                      approval
+                        ? `<div class="approval-card ${approval.status !== 'pending' ? 'resolved' : ''}">
+                            <div class="row-between">
+                              <strong>${approval.status === 'pending' ? 'Approval required' : approval.status === 'denied' ? 'Action denied' : 'Action approved'} · <span class="mono">${esc(approval.tool)}</span></strong>
+                              <span class="badge ${approval.status === 'pending' ? 'amber' : approval.status === 'denied' ? 'red' : 'green'}">${esc(approval.connector)}</span>
+                            </div>
+                            <pre class="approval-args mono">${esc(approval.args)}</pre>
+                            ${
+                              approval.status === 'pending'
+                                ? `<div class="approval-actions">
+                                    <button type="button" class="primary" data-approval="allow-once" data-msg-idx="${idx}">Allow once</button>
+                                    <button type="button" data-approval="always-allow" data-msg-idx="${idx}">Always allow</button>
+                                    <button type="button" class="danger" data-approval="deny" data-msg-idx="${idx}">Deny</button>
+                                  </div>`
+                                : `<p class="muted" style="font-size:10px">${approval.status === 'always' ? 'Policy updated to Allow in bot.yaml (simulated).' : approval.status === 'once' ? 'Executed once and logged to trace tr_892b.' : 'Blocked by operator and logged to trace tr_892b.'}</p>`
+                            }
+                          </div>`
+                        : ''
+                    }
+                  </div>`
+                })
+                .join('')
+
+        return `<div class="chat-stream"><div class="msg-wrap">${msgHtml}</div></div>
+        <div class="composer-bar">
+          <form id="chat-form" class="composer-inner">
+            <textarea id="chat-input" name="message" aria-label="Message bot" placeholder="Message ${esc(bot.name)}… (Cmd/Ctrl + Enter to send)">${esc(state.draftMessage)}</textarea>
+            <div class="composer-foot">
+              <div class="pill-row">
+                <span class="badge">${esc(bot.model)}</span>
+                <span class="badge">${activeSkills} ${activeSkills === 1 ? 'skill' : 'skills'}</span>
+                ${enabledConns.map((n) => `<span class="badge green">${esc(n)}</span>`).join('')}
+              </div>
+              <button type="submit" class="primary">Send</button>
+            </div>
+          </form>
+        </div>`
+      }
+
+      function renderStatsTab(bot) {
+        const d = STATS_DATA[state.statsRange] || STATS_DATA['7d']
+        const maxBar = Math.max(...d.daily, 1)
+        const barW = 28
+        const gap = 16
+        const chartW = d.daily.length * (barW + gap) + 24
+        const barsSvg = `<svg viewBox="0 0 ${chartW} 112" width="100%" height="112" role="img" aria-label="Traces and errors over time">
+          ${d.daily
+            .map((v, i) => {
+              const h = Math.round((v / maxBar) * 76)
+              const eh = Math.max(d.errDaily[i] ? 5 : 0, Math.round((d.errDaily[i] / maxBar) * 76))
+              const x = 14 + i * (barW + gap)
+              return `<g>
+                <rect x="${x}" y="${86 - h}" width="${barW}" height="${h}" rx="3" fill="#334155"></rect>
+                ${eh ? `<rect x="${x}" y="${86 - eh}" width="${barW}" height="${eh}" rx="2" fill="#e11d48"></rect>` : ''}
+                <text x="${x + barW / 2}" y="102" text-anchor="middle" font-size="9" fill="#64748b">${esc(d.labels[i])}</text>
+              </g>`
+            })
+            .join('')}
+        </svg>`
+
+        const latencySvg = `<svg viewBox="0 0 320 112" width="100%" height="112" role="img" aria-label="Latency percentiles p50 p95 p99">
+          <line x1="26" y1="20" x2="310" y2="20" stroke="#f1f5f9" />
+          <line x1="26" y1="54" x2="310" y2="54" stroke="#f1f5f9" />
+          <line x1="26" y1="88" x2="310" y2="88" stroke="#e2e8f0" />
+          <polyline fill="none" stroke="#e11d48" stroke-width="1.8" points="30,34 86,28 142,38 198,25 254,31 305,27" />
+          <polyline fill="none" stroke="#d97706" stroke-width="1.8" points="30,54 86,51 142,58 198,49 254,53 305,50" />
+          <polyline fill="none" stroke="#2563eb" stroke-width="2" points="30,74 86,72 142,76 198,71 254,73 305,72" />
+          <text x="2" y="24" font-size="8.5" fill="#94a3b8">4s</text>
+          <text x="2" y="57" font-size="8.5" fill="#94a3b8">2s</text>
+          <text x="2" y="90" font-size="8.5" fill="#94a3b8">0s</text>
+          <text x="34" y="104" font-size="8.5" fill="#2563eb">● p50 1.18s</text>
+          <text x="112" y="104" font-size="8.5" fill="#d97706">● p95 3.42s</text>
+          <text x="192" y="104" font-size="8.5" fill="#e11d48">● p99 4.82s</text>
+        </svg>`
+
+        const channels = [
+          { name: 'Slack', pct: 48, meta: '616 · $8.84', color: '#7c3aed' },
+          { name: 'Web app', pct: 27, meta: '347 · $4.97', color: '#2563eb' },
+          { name: 'Discord', pct: 16, meta: '205 · $2.95', color: '#059669' },
+          { name: 'Desktop', pct: 9, meta: '116 · $1.66', color: '#475569' },
+        ]
+        const tools = [
+          { tool: 'docs-mcp.query_docs', calls: 912, p50: '190ms', err: '0.2%' },
+          { tool: 'linear.search_issues', calls: 418, p50: '360ms', err: '2.4%' },
+          { tool: 'slack.read_thread', calls: 380, p50: '175ms', err: '0.0%' },
+          { tool: 'slack.post_message', calls: 129, p50: '240ms', err: '0.8%' },
+        ]
+
+        return `<div class="filter-bar">
+          <div class="filter-group">
+            <strong style="font-size:11.5px">Statistics · ${esc(bot.name)}</strong>
+            <span class="badge">${bot.runtimeMode === 'remote' ? `Server: ${esc(bot.remoteServer)}` : 'Local SQLite'}</span>
+          </div>
+          <div class="filter-group">
+            <select id="stats-channel" aria-label="Filter statistics by channel" style="padding:4px 8px;font-size:10px">
+              ${['All', 'Slack', 'Discord', 'Web', 'Desktop']
+                .map(
+                  (c) =>
+                    `<option value="${c}" ${state.statsChannel === c ? 'selected' : ''}>Channel: ${c}</option>`,
+                )
+                .join('')}
+            </select>
+            <div class="segments" role="group" aria-label="Statistics time range">
+              ${['24h', '7d', '30d']
+                .map(
+                  (r) =>
+                    `<button type="button" class="${state.statsRange === r ? 'active' : ''}" data-stats-range="${r}">${r}</button>`,
+                )
+                .join('')}
+            </div>
+          </div>
+        </div>
+        <div class="scroll pane-pad">
+          <div class="kpi-grid">
+            <div class="kpi"><div class="kpi-label">Total traces</div><div class="kpi-val">${esc(d.traces)}</div><div class="kpi-sub">${esc(d.tracesSub)}</div></div>
+            <div class="kpi"><div class="kpi-label">Sessions</div><div class="kpi-val">${esc(d.sessions)}</div><div class="kpi-sub">${esc(d.sessionsSub)}</div></div>
+            <div class="kpi"><div class="kpi-label">Latency (p50 / p95)</div><div class="kpi-val">${esc(d.latency)}</div><div class="kpi-sub">${esc(d.latencySub)}</div></div>
+            <div class="kpi"><div class="kpi-label">Estimated cost</div><div class="kpi-val">${esc(d.cost)}</div><div class="kpi-sub">${esc(d.costSub)}</div></div>
+            <div class="kpi"><div class="kpi-label">Error rate</div><div class="kpi-val">${esc(d.errors)}</div><div class="kpi-sub">${esc(d.errorsSub)}</div></div>
+          </div>
+          <div class="chart-grid">
+            <section class="card">
+              <div class="card-head"><h3>Traces &amp; errors over time</h3><span class="muted" style="font-size:10px">Dark: OK · Red: Error</span></div>
+              ${barsSvg}
+            </section>
+            <section class="card">
+              <div class="card-head"><h3>End-to-end latency percentiles</h3><span class="muted" style="font-size:10px">Seconds</span></div>
+              ${latencySvg}
+            </section>
+            <section class="card">
+              <div class="card-head"><h3>Traffic &amp; cost by channel</h3><span class="muted" style="font-size:10px">${esc(state.statsRange)}</span></div>
+              ${channels
+                .map(
+                  (c) => `<div class="bar-row">
+                    <span>${esc(c.name)}</span>
+                    <div class="bar-track"><div class="bar-fill" style="width:${c.pct}%;background:${c.color}"></div></div>
+                    <span class="muted" style="text-align:right;font-size:10px">${esc(c.meta)}</span>
+                  </div>`,
+                )
+                .join('')}
+            </section>
+            <section class="card">
+              <div class="card-head"><h3>Top connector tool calls</h3><button type="button" class="quiet" style="padding:2px 6px;font-size:10px;color:#0369a1" data-action="go-traces">Explore traces →</button></div>
+              <table>
+                <thead><tr><th>Tool</th><th>Calls</th><th>p50</th><th>Errors</th></tr></thead>
+                <tbody>
+                  ${tools
+                    .map(
+                      (t) => `<tr>
+                        <td class="mono" style="font-size:10px">${esc(t.tool)}</td>
+                        <td>${t.calls}</td>
+                        <td class="mono">${esc(t.p50)}</td>
+                        <td><span class="badge ${t.err !== '0.0%' && t.err !== '0.2%' ? 'amber' : 'green'}">${esc(t.err)}</span></td>
+                      </tr>`,
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </section>
+          </div>
+        </div>`
+      }
+
+      function renderSessionsTab(bot) {
+        const q = state.sessionSearch.trim().toLowerCase()
+        const filtered = bot.sessions.filter(
+          (s) =>
+            (state.sessionChannel === 'All' || s.channel === state.sessionChannel) &&
+            (!q ||
+              s.id.toLowerCase().includes(q) ||
+              s.title.toLowerCase().includes(q) ||
+              s.user.toLowerCase().includes(q)),
+        )
+        const active = filtered.find((s) => s.id === state.selectedSessionId) || filtered[0]
+
+        return `<div class="filter-bar">
+          <div class="filter-group">
+            <input id="session-search" aria-label="Search sessions" placeholder="Search session ID, user, or channel…" value="${esc(state.sessionSearch)}" style="width:240px;padding:4px 8px;font-size:10.5px" />
+            <select id="session-channel" aria-label="Filter sessions by channel" style="padding:4px 8px;font-size:10px">
+              ${['All', 'Desktop', 'Slack', 'Discord', 'Web']
+                .map(
+                  (c) =>
+                    `<option value="${c}" ${state.sessionChannel === c ? 'selected' : ''}>Channel: ${c}</option>`,
+                )
+                .join('')}
+            </select>
+          </div>
+          <span class="muted" style="font-size:10px">${filtered.length} sessions · grouped by session_id</span>
+        </div>
+        <div class="split">
+          <div class="split-left">
+            <div class="scroll">
+              ${
+                filtered.length === 0
+                  ? `<p class="muted" style="padding:14px">No sessions recorded for this bot yet.</p>`
+                  : filtered
+                      .map((s) => {
+                        const traceCount = Math.ceil(s.messages.length / 2)
+                        return `<button type="button" class="list-row ${active && active.id === s.id ? 'active' : ''}" data-select-session="${esc(s.id)}">
+                          <div class="row-between">
+                            <strong style="font-size:11px">${esc(s.title)}</strong>
+                            <span class="badge ${s.status === 'Error' ? 'red' : s.status === 'Active' ? 'green' : ''}">${esc(s.status)}</span>
+                          </div>
+                          <div class="row-between muted" style="font-size:9.5px">
+                            <span class="mono">${esc(s.id)} · ${esc(s.user)}</span>
+                            <span>${esc(s.updated)}</span>
+                          </div>
+                          <div class="pill-row">
+                            <span class="badge ${s.channel === 'Slack' ? 'violet' : s.channel === 'Discord' ? 'blue' : ''}">${esc(s.channel)}</span>
+                            <span class="badge">${traceCount} ${traceCount === 1 ? 'trace' : 'traces'}</span>
+                            <span class="badge">${(s.latencyMs / 1000).toFixed(2)}s</span>
+                            <span class="badge">$${s.cost.toFixed(4)}</span>
+                          </div>
+                        </button>`
+                      })
+                      .join('')
+              }
+            </div>
+          </div>
+          <div class="split-right">
+            ${
+              !active
+                ? `<div class="empty-wrap"><p class="muted">Select a session to replay turns and jump into traces.</p></div>`
+                : `<div class="filter-bar">
+                    <div>
+                      <strong style="font-size:11.5px">${esc(active.title)}</strong>
+                      <div class="muted mono" style="font-size:9.5px">${esc(active.id)} · ${esc(active.channelDetail)} · user ${esc(active.user)}</div>
+                    </div>
+                    <div class="pill-row">
+                      <span class="badge">${active.tokens.toLocaleString()} tok</span>
+                      <span class="badge">$${active.cost.toFixed(4)}</span>
+                    </div>
+                  </div>
+                  <div class="scroll pane-pad" style="display:flex;flex-direction:column;gap:10px">
+                    ${active.messages
+                      .map(
+                        (m) => `<div class="card">
+                          <div class="row-between" style="margin-bottom:5px">
+                            <span><strong>${m.role === 'user' ? esc(m.author || active.user) : esc(bot.name)}</strong> <span class="badge">${m.role === 'user' ? 'User' : 'Assistant'}</span></span>
+                            <span class="filter-group">
+                              ${m.traceId ? `<span class="badge">${esc(m.latency)}</span><span class="badge">${esc(m.cost)}</span><button type="button" class="quiet" style="padding:2px 6px;font-size:10px;color:#0369a1" data-open-trace="${esc(m.traceId)}">Trace ${esc(m.traceId)} →</button>` : `<span class="muted" style="font-size:10px">${esc(m.time)}</span>`}
+                            </span>
+                          </div>
+                          <p style="white-space:pre-line">${esc(m.text)}</p>
+                        </div>`,
+                      )
+                      .join('')}
+                  </div>`
+            }
+          </div>
+        </div>`
+      }
+
+      function renderTracesTab() {
+        const q = state.traceSearch.trim().toLowerCase()
+        const filtered = TRACES.filter(
+          (t) =>
+            (state.traceStatus === 'All' || t.status === state.traceStatus) &&
+            (state.traceChannel === 'All' || t.channel === state.traceChannel) &&
+            (!q ||
+              t.id.toLowerCase().includes(q) ||
+              t.name.toLowerCase().includes(q) ||
+              t.input.toLowerCase().includes(q) ||
+              t.tags.some((tg) => tg.toLowerCase().includes(q))),
+        )
+
+        if (state.selectedTraceId) {
+          const trace = TRACES.find((t) => t.id === state.selectedTraceId) || TRACES[0]
+          const obs =
+            trace.observations.find((o) => o.id === state.selectedObsId) || trace.observations[0]
+          const barColor = {
+            agent: '#334155',
+            gen: '#7c3aed',
+            tool: '#0284c7',
+            retriever: '#059669',
+            event: '#d97706',
+          }
+
+          return `<div class="filter-bar">
+            <div class="filter-group">
+              <button type="button" data-action="back-to-traces">← All traces</button>
+              <strong class="mono">${esc(trace.id)}</strong>
+              <span>${esc(trace.name)}</span>
+              <span class="badge ${trace.status === 'Error' ? 'red' : trace.status === 'Awaiting approval' ? 'amber' : 'green'}">${esc(trace.status)}</span>
+              <span class="badge">${esc(trace.channel)}</span>
+            </div>
+            <div class="filter-group">
+              <span class="badge">${(trace.latencyMs / 1000).toFixed(2)}s</span>
+              <span class="badge">${trace.tokens.toLocaleString()} tok</span>
+              <span class="badge">$${trace.cost.toFixed(4)}</span>
+              <div class="segments" role="group" aria-label="Trace layout">
+                <button type="button" class="${state.traceViewMode === 'waterfall' ? 'active' : ''}" data-trace-view="waterfall">Waterfall</button>
+                <button type="button" class="${state.traceViewMode === 'tree' ? 'active' : ''}" data-trace-view="tree">Tree</button>
+              </div>
+            </div>
+          </div>
+          <div class="split trace-split">
+            <div class="split-left">
+              <div class="wf-header">
+                <span>Observation</span>
+                <span>${state.traceViewMode === 'waterfall' ? `Timeline (0ms → ${trace.latencyMs}ms)` : 'Type & Model'}</span>
+                <span style="text-align:right">Duration</span>
+              </div>
+              <div class="scroll">
+                ${trace.observations
+                  .map((o) => {
+                    const leftPct = (o.startMs / Math.max(trace.latencyMs, 1)) * 100
+                    const widthPct = Math.max(3, (o.durMs / Math.max(trace.latencyMs, 1)) * 100)
+                    return `<button type="button" class="wf-row ${obs && obs.id === o.id ? 'active' : ''}" data-select-obs="${esc(o.id)}">
+                      <span style="padding-left:${o.depth * 14}px;display:flex;align-items:center;gap:5px;min-width:0">
+                        <span class="obs-type obs-${esc(o.type)}">${esc(o.type)}</span>
+                        <span class="mono" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.name)}</span>
+                      </span>
+                      ${
+                        state.traceViewMode === 'waterfall'
+                          ? `<span class="wf-track"><span class="wf-bar" style="left:${leftPct.toFixed(1)}%;width:${Math.min(100 - leftPct, widthPct).toFixed(1)}%;background:${barColor[o.type] || '#475569'}"></span></span>`
+                          : `<span class="muted mono" style="font-size:9.5px">${esc(o.model)}</span>`
+                      }
+                      <span class="mono muted" style="text-align:right;font-size:10px">${o.durMs}ms</span>
+                    </button>`
+                  })
+                  .join('')}
+              </div>
+            </div>
+            <div class="split-right">
+              <div class="filter-bar">
+                <div>
+                  <span class="obs-type obs-${esc(obs.type)}">${esc(obs.type)}</span>
+                  <strong class="mono" style="margin-left:5px">${esc(obs.name)}</strong>
+                  <div class="muted" style="font-size:9.5px;margin-top:2px">${esc(obs.model)} · ${obs.durMs}ms${obs.tokens ? ` · ${obs.tokens.in} in / ${obs.tokens.out} out / ${obs.tokens.cached} cached · $${obs.cost.toFixed(4)}` : ''}</div>
+                </div>
+                <div class="segments" role="group" aria-label="Observation inspector tabs">
+                  <button type="button" class="${state.obsTab === 'io' ? 'active' : ''}" data-obs-tab="io">Input / Output</button>
+                  <button type="button" class="${state.obsTab === 'meta' ? 'active' : ''}" data-obs-tab="meta">Metadata</button>
+                  <button type="button" class="${state.obsTab === 'json' ? 'active' : ''}" data-obs-tab="json">Raw JSON</button>
+                </div>
+              </div>
+              <div class="scroll pane-pad">
+                ${
+                  state.obsTab === 'io'
+                    ? `<div class="side-label" style="margin-bottom:4px">Input</div>
+                       <pre class="payload-box mono">${esc(JSON.stringify(obs.input, null, 2))}</pre>
+                       <div class="side-label" style="margin-bottom:4px">Output</div>
+                       <pre class="payload-box mono">${esc(JSON.stringify(obs.output, null, 2))}</pre>`
+                    : state.obsTab === 'meta'
+                      ? `<div class="side-label" style="margin-bottom:4px">Observation metadata</div>
+                         <pre class="payload-box mono">${esc(JSON.stringify(obs.meta, null, 2))}</pre>
+                         <div class="side-label" style="margin-bottom:4px">Session &amp; tags</div>
+                         <div class="pill-row"><span class="badge mono">${esc(trace.sessionId)}</span>${trace.tags.map((tg) => `<span class="badge">${esc(tg)}</span>`).join('')}</div>`
+                      : `<pre class="payload-box mono">${esc(JSON.stringify(obs, null, 2))}</pre>`
+                }
+              </div>
+            </div>
+          </div>`
+        }
+
+        return `<div class="filter-bar">
+          <div class="filter-group">
+            <input id="trace-search" aria-label="Search traces" placeholder="Search trace ID, name, input, or tag…" value="${esc(state.traceSearch)}" style="width:240px;padding:4px 8px;font-size:10.5px" />
+            <select id="trace-channel" aria-label="Filter traces by channel" style="padding:4px 8px;font-size:10px">
+              ${['All', 'Desktop', 'Slack', 'Discord', 'Web']
+                .map(
+                  (c) =>
+                    `<option value="${c}" ${state.traceChannel === c ? 'selected' : ''}>Channel: ${c}</option>`,
+                )
+                .join('')}
+            </select>
+            <select id="trace-status" aria-label="Filter traces by status" style="padding:4px 8px;font-size:10px">
+              ${['All', 'OK', 'Awaiting approval', 'Error']
+                .map(
+                  (s) =>
+                    `<option value="${s}" ${state.traceStatus === s ? 'selected' : ''}>Status: ${s}</option>`,
+                )
+                .join('')}
+            </select>
+          </div>
+          <span class="muted" style="font-size:10px">${filtered.length} traces · click any row for waterfall</span>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Trace</th>
+                <th>Channel</th>
+                <th>Session</th>
+                <th>Input</th>
+                <th>Latency</th>
+                <th>Tokens</th>
+                <th>Cost</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered
+                .map(
+                  (t) => `<tr class="clickable" data-open-trace="${esc(t.id)}">
+                    <td class="mono muted">${esc(t.time)}</td>
+                    <td><strong>${esc(t.name)}</strong><div class="mono muted" style="font-size:9.5px">${esc(t.id)}</div></td>
+                    <td><span class="badge ${t.channel === 'Slack' ? 'violet' : t.channel === 'Discord' ? 'blue' : ''}">${esc(t.channel)}</span></td>
+                    <td class="mono muted" style="font-size:10px">${esc(t.sessionId)}</td>
+                    <td style="max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.input)}</td>
+                    <td class="mono">${(t.latencyMs / 1000).toFixed(2)}s</td>
+                    <td class="mono">${t.tokens.toLocaleString()}</td>
+                    <td class="mono">$${t.cost.toFixed(4)}</td>
+                    <td><span class="badge ${t.status === 'Error' ? 'red' : t.status === 'Awaiting approval' ? 'amber' : 'green'}">${esc(t.status)}</span></td>
+                  </tr>`,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+      }
+
+      function renderBotSettingsDrawer(bot) {
+        const sections = [
+          ['general', 'General'],
+          ['skills', 'Skills'],
+          ['connectors', 'Apps'],
+          ['channels', 'Channels'],
+          ['files', 'Files'],
+        ]
+
+        let body = ''
+        if (state.botSettingsSection === 'general') {
+          body = `<div class="field">
+              <span>Bot name</span>
+              <input id="bot-name-input" value="${esc(bot.name)}" />
+            </div>
+            <div class="field">
+              <span>Execution harness</span>
+              <div class="segments" role="group" aria-label="Bot harness execution mode">
+                <button type="button" style="flex:1;justify-content:center" class="${bot.runtimeMode === 'local' ? 'active' : ''}" data-bot-runtime="local">Local harness</button>
+                <button type="button" style="flex:1;justify-content:center" class="${bot.runtimeMode === 'remote' ? 'active' : ''}" data-bot-runtime="remote">Remote server</button>
+              </div>
+            </div>
+            ${
+              bot.runtimeMode === 'remote'
+                ? `<label class="field"><span>Remote Diffagent server</span>
+                    <select id="bot-server-select">
+                      ${REMOTE_SERVERS.map(
+                        (s) =>
+                          `<option value="${esc(s.id)}" ${bot.remoteServer === s.id ? 'selected' : ''}>${esc(s.name)}</option>`,
+                      ).join('')}
+                    </select>
+                  </label>`
+                : `<div class="muted mono" style="font-size:9.5px;margin-bottom:9px">Path: ~/.diffagent/bots/${esc(bot.slug)}</div>`
+            }
+            <label class="field"><span>Model (cloud or local inference)</span>
+              <select id="bot-model-select">
+                ${['claude-sonnet-4-6', 'gpt-5', 'grok-4', 'ollama/qwen3-32b']
+                  .map(
+                    (m) =>
+                      `<option value="${m}" ${bot.model === m ? 'selected' : ''}>${m}</option>`,
+                  )
+                  .join('')}
+              </select>
+            </label>
+            <div class="field">
+              <span>Avatar shape &amp; color</span>
+              <div class="pill-row" style="margin-bottom:6px">
+                ${SHAPES.map((s) => `<button type="button" class="${bot.shape === s ? 'primary' : ''}" style="padding:3px 7px;font-size:10px" data-bot-shape="${s}">${s}</button>`).join('')}
+              </div>
+              <div class="pill-row">
+                ${COLORS.map((c) => `<button type="button" class="swatch ${bot.color === c ? 'active' : ''}" style="background:${c}" data-bot-color="${c}" aria-label="Color ${c}"></button>`).join('')}
+              </div>
+            </div>
+            <div class="field-grid">
+              <label class="field"><span>Max steps</span><input id="bot-steps-input" type="number" value="${bot.maxSteps}" /></label>
+              <label class="field"><span>Daily cap (USD)</span><input id="bot-budget-input" type="number" value="${bot.dailyBudgetUsd}" /></label>
+            </div>
+            <label class="field"><span>Instructions (INSTRUCTIONS.md)</span>
+              <textarea id="bot-instructions-input" rows="5" class="mono" style="font-size:10px">${esc(bot.instructions)}</textarea>
+            </label>`
+        } else if (state.botSettingsSection === 'skills') {
+          body = `<div class="row-between" style="margin-bottom:8px">
+              <div>
+                <h3>Bot skills</h3>
+                <div class="muted mono" style="font-size:9.5px">${esc(botLocation(bot))}/skills/</div>
+              </div>
+              <button type="button" data-action="add-skill">＋ Add skill</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${
+                bot.skills.length === 0
+                  ? `<div class="card muted" style="font-size:10.5px">No skills defined yet. Add a skill to scaffold <span class="mono">skills/{name}/SKILL.md</span> in this bot's directory.</div>`
+                  : bot.skills
+                      .map(
+                        (sk, idx) => `<div class="card">
+                          <div class="row-between" style="margin-bottom:4px">
+                            <strong class="mono" style="font-size:10.5px">${esc(sk.slug)}</strong>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:10px">
+                              <input type="checkbox" data-skill-toggle="${idx}" ${sk.enabled ? 'checked' : ''} />
+                              Enabled
+                            </label>
+                          </div>
+                          <p class="muted" style="font-size:10px;margin-bottom:4px">${esc(sk.summary)}</p>
+                          <div class="muted mono" style="font-size:9.5px">skills/${esc(sk.slug)}/SKILL.md</div>
+                        </div>`,
+                      )
+                      .join('')
+              }
+            </div>`
+        } else if (state.botSettingsSection === 'connectors') {
+          const connected = state.connectors.filter((c) => c.status !== 'Not connected')
+          body = `<div class="row-between" style="margin-bottom:8px">
+              <h3>Connectors &amp; gates</h3>
+              <button type="button" class="quiet" style="font-size:10px;color:#0369a1;padding:2px 4px" data-action="open-user-connectors">All apps →</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${connected
+                .map((c) => {
+                  const perm = bot.connectorPerms[c.id] || {
+                    enabled: false,
+                    tools: Object.fromEntries(c.tools.map((t) => [t.id, 'ask'])),
+                  }
+                  return `<section class="card">
+                    <div class="row-between">
+                      <div>
+                        <strong>${esc(c.name)}</strong>
+                        <span class="badge ${c.status === 'Connected' ? 'green' : 'amber'}" style="margin-left:4px">${esc(c.status)}</span>
+                      </div>
+                      <label style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600">
+                        <input type="checkbox" data-bot-conn-toggle="${esc(c.id)}" ${perm.enabled ? 'checked' : ''} />
+                        On
+                      </label>
+                    </div>
+                    ${
+                      perm.enabled
+                        ? `<div style="margin-top:6px">
+                            ${c.tools
+                              .map((t) => {
+                                const val = perm.tools[t.id] || 'ask'
+                                return `<div class="perm-row" style="flex-direction:column;align-items:stretch;gap:4px">
+                                  <span class="mono" style="font-size:9.5px">${esc(c.id)}.${esc(t.id)}</span>
+                                  <div class="segments" role="group" aria-label="Permission for ${esc(t.id)}">
+                                    ${[
+                                      ['allow', 'Allow'],
+                                      ['ask', 'Ask'],
+                                      ['deny', 'Deny'],
+                                    ]
+                                      .map(
+                                        ([pv, pl]) =>
+                                          `<button type="button" style="flex:1;justify-content:center" class="${val === pv ? 'active' : ''}" data-perm-conn="${esc(c.id)}" data-perm-tool="${esc(t.id)}" data-perm-val="${pv}">${pl}</button>`,
+                                      )
+                                      .join('')}
+                                  </div>
+                                </div>`
+                              })
+                              .join('')}
+                          </div>`
+                        : ''
+                    }
+                  </section>`
+                })
+                .join('')}
+            </div>`
+        } else if (state.botSettingsSection === 'channels') {
+          const ch = bot.channels
+          body = `<div style="display:flex;flex-direction:column;gap:8px">
+              <section class="card">
+                <div class="row-between" style="margin-bottom:6px">
+                  <strong>Slack</strong>
+                  <label style="display:flex;align-items:center;gap:4px;font-size:10px"><input type="checkbox" data-channel-toggle="slack" ${ch.slack.enabled ? 'checked' : ''} /> On</label>
+                </div>
+                <label class="field"><span>Channels</span><input value="${esc(ch.slack.targets)}" data-channel-field="slack.targets" /></label>
+                <label class="field" style="margin-bottom:0"><span>Trigger</span><input value="${esc(ch.slack.trigger)}" data-channel-field="slack.trigger" /></label>
+              </section>
+              <section class="card">
+                <div class="row-between" style="margin-bottom:6px">
+                  <strong>Discord</strong>
+                  <label style="display:flex;align-items:center;gap:4px;font-size:10px"><input type="checkbox" data-channel-toggle="discord" ${ch.discord.enabled ? 'checked' : ''} /> On</label>
+                </div>
+                <label class="field"><span>Guild &amp; channels</span><input value="${esc(ch.discord.targets)}" data-channel-field="discord.targets" /></label>
+                <label class="field" style="margin-bottom:0"><span>Trigger</span><input value="${esc(ch.discord.trigger)}" data-channel-field="discord.trigger" /></label>
+              </section>
+              <section class="card">
+                <div class="row-between" style="margin-bottom:6px">
+                  <strong>Web app / API</strong>
+                  <label style="display:flex;align-items:center;gap:4px;font-size:10px"><input type="checkbox" data-channel-toggle="web" ${ch.web.enabled ? 'checked' : ''} /> On</label>
+                </div>
+                <label class="field"><span>Endpoint</span><input class="mono" style="font-size:9.5px" value="${esc(ch.web.endpoint)}" readonly /></label>
+                <label class="field" style="margin-bottom:0"><span>CORS origins</span><input value="${esc(ch.web.origins)}" data-channel-field="web.origins" /></label>
+              </section>
+            </div>`
+        } else {
+          body = `<div class="row-between" style="margin-bottom:8px">
+              <span class="badge green">${bot.runtimeMode === 'remote' ? 'Server synced' : 'Disk synced'}</span>
+              <span class="badge">0 plaintext secrets</span>
+            </div>
+            <div class="side-label" style="margin-bottom:4px">Directory tree</div>
+            <pre class="payload-box mono" style="font-size:9.5px">${esc(botLocation(bot))}/
+├── bot.yaml
+├── INSTRUCTIONS.md
+└── skills/${bot.skills.length ? '\n' + bot.skills.map((s) => `    └── ${s.slug}/SKILL.md`).join('\n') : ' (empty)'}</pre>
+            <div class="side-label" style="margin-bottom:4px">bot.yaml</div>
+            <pre class="payload-box mono" style="font-size:9.5px;margin-bottom:0">${esc(botYamlPreview(bot))}</pre>`
+        }
+
+        return `<aside id="bot-settings-drawer" class="right-drawer" aria-label="Bot settings">
+          <div class="drawer-head">
+            <div class="row-between">
+              <div style="display:flex;align-items:center;gap:7px">
+                ${botAvatar(bot, 'sm')}
+                <div>
+                  <h2 style="font-size:11.5px">${esc(bot.name)} settings</h2>
+                  <div class="muted mono" style="font-size:9px">${esc(botLocation(bot))}</div>
+                </div>
+              </div>
+              <div class="filter-group">
+                <button type="button" class="primary" style="padding:3px 8px;font-size:10px" data-action="save-bot">Save</button>
+                <button type="button" class="quiet" style="padding:3px 6px" data-action="toggle-bot-settings" aria-label="Close bot settings">✕</button>
+              </div>
+            </div>
+            <div class="drawer-tabs" role="tablist">
+              ${sections
+                .map(
+                  ([id, label]) =>
+                    `<button type="button" class="drawer-tab ${state.botSettingsSection === id ? 'active' : ''}" data-bot-settings="${id}" role="tab" aria-selected="${state.botSettingsSection === id}">${label}</button>`,
+                )
+                .join('')}
+            </div>
+          </div>
+          <div class="scroll" style="padding:12px">${body}</div>
+        </aside>`
+      }
+
+      function renderUserConnectors() {
+        const filters = ['All', 'Connected', 'Channels', 'Tools & SaaS', 'Custom MCP']
+        const list = state.connectors.filter((c) => {
+          if (state.connectorFilter === 'All') return true
+          if (state.connectorFilter === 'Connected') return c.status === 'Connected'
+          return c.category === state.connectorFilter
+        })
+
+        return `<div class="filter-bar">
+          <div class="segments" role="group" aria-label="Connector categories">
+            ${filters
+              .map(
+                (f) =>
+                  `<button type="button" class="${state.connectorFilter === f ? 'active' : ''}" data-conn-filter="${f}">${f}</button>`,
+              )
+              .join('')}
+          </div>
+          <span class="muted" style="font-size:10px">Authorize apps once, then enable per bot in Settings · Secrets stay in keychain or env</span>
+        </div>
+        <div class="scroll pane-pad">
+          <div class="tile-grid">
+            ${list
+              .map((c) => {
+                const ic = CONNECTOR_ICONS[c.id] || CONNECTOR_ICONS.default
+                const dotCls =
+                  c.status === 'Connected'
+                    ? 'connected'
+                    : c.status === 'Needs re-auth'
+                      ? 'warn'
+                      : 'off'
+                return `<section class="conn-tile">
+                  <span class="tile-status-dot ${dotCls}" title="${esc(c.status)}"></span>
+                  <div class="tile-icon" style="background:${ic.bg};color:${ic.fg}" aria-hidden="true">${ic.svg}</div>
+                  <div>
+                    <div class="tile-name">${esc(c.name)}</div>
+                    <div class="tile-sub">${esc(c.account)}</div>
+                  </div>
+                  <button type="button" class="tile-btn ${c.status === 'Not connected' ? 'primary' : ''}" data-toggle-conn="${esc(c.id)}">${c.status === 'Connected' ? 'Connected' : c.status === 'Needs re-auth' ? 'Reconnect' : 'Connect'}</button>
+                </section>`
+              })
+              .join('')}
+            <button type="button" class="conn-tile add-tile" data-action="open-add-mcp" aria-label="Add custom MCP">
+              <div class="tile-icon" style="background:#e2e8f0;color:#334155;font-size:20px;font-weight:500">＋</div>
+              <div class="tile-name">Custom MCP</div>
+              <div class="tile-sub">stdio or HTTP</div>
+            </button>
+          </div>
+        </div>`
+      }
+
+      function renderUserSettings() {
+        const u = state.userSettings
+        return `<div class="scroll pane-pad">
+          <div style="max-width:780px;display:flex;flex-direction:column;gap:12px">
+            <section class="card">
+              <div class="card-head"><h2>Local harness &amp; remote Diffagent servers</h2><span class="badge blue">Per-bot target</span></div>
+              <div class="field-grid">
+                <label class="field"><span>Local bots directory</span><input class="mono" value="${esc(u.homeDir)}/bots" readonly /></label>
+                <label class="field"><span>Local observability retention</span>
+                  <select id="user-retention">
+                    ${['7', '30', '90']
+                      .map(
+                        (d) =>
+                          `<option value="${d}" ${u.retentionDays === d ? 'selected' : ''}>${d} days (local SQLite)</option>`,
+                      )
+                      .join('')}
+                  </select>
+                </label>
+              </div>
+              <table style="margin-bottom:8px">
+                <thead><tr><th>Remote server</th><th>Endpoint</th><th>Access</th><th>Status</th></tr></thead>
+                <tbody>
+                  ${REMOTE_SERVERS.map(
+                    (s) => `<tr>
+                      <td><strong>${esc(s.id)}</strong></td>
+                      <td class="mono">${esc(s.url)}</td>
+                      <td class="mono">keychain:diffagent-${esc(s.id)}</td>
+                      <td><span class="badge green">${esc(s.status)}</span></td>
+                    </tr>`,
+                  ).join('')}
+                </tbody>
+              </table>
+              <label style="display:flex;align-items:center;gap:6px;font-size:10.5px">
+                <input id="user-autoreload" type="checkbox" ${u.autoReload ? 'checked' : ''} />
+                Auto-reload local bots when files under <span class="mono">~/.diffagent/bots/{name}</span> change on disk
+              </label>
+            </section>
+            <section class="card">
+              <div class="card-head"><h2>Model providers &amp; credential vault</h2><span class="muted" style="font-size:10px">Cloud APIs or local inference</span></div>
+              <table>
+                <thead><tr><th>Provider</th><th>Credential reference</th><th>Default models</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr><td><strong>Anthropic</strong></td><td class="mono">env:ANTHROPIC_API_KEY</td><td class="mono">claude-sonnet-4-6</td><td><span class="badge green">Connected</span></td></tr>
+                  <tr><td><strong>OpenAI</strong></td><td class="mono">env:OPENAI_API_KEY</td><td class="mono">gpt-5</td><td><span class="badge green">Connected</span></td></tr>
+                  <tr><td><strong>xAI</strong></td><td class="mono">keychain:xai-api-key</td><td class="mono">grok-4</td><td><span class="badge green">Connected</span></td></tr>
+                  <tr><td><strong>Ollama</strong></td><td class="mono">http://127.0.0.1:11434</td><td class="mono">ollama/qwen3-32b</td><td><span class="badge blue">Local inference</span></td></tr>
+                </tbody>
+              </table>
+            </section>
+            <section class="card">
+              <div class="card-head"><h2>Preferences &amp; safety defaults</h2></div>
+              <div class="field-grid">
+                <label class="field"><span>Appearance</span>
+                  <select id="user-theme">
+                    ${['Light', 'Dark', 'System']
+                      .map(
+                        (th) =>
+                          `<option value="${th}" ${u.theme === th ? 'selected' : ''}>${th}</option>`,
+                      )
+                      .join('')}
+                  </select>
+                </label>
+                <label class="field"><span>Default write-tool policy for new bots</span>
+                  <select id="user-policy">
+                    ${['Ask approval', 'Allow', 'Deny']
+                      .map(
+                        (p) =>
+                          `<option value="${p}" ${u.defaultWritePolicy === p ? 'selected' : ''}>${p}</option>`,
+                      )
+                      .join('')}
+                  </select>
+                </label>
+              </div>
+            </section>
+          </div>
+        </div>`
+      }
+
+      function renderEmptyState() {
+        return `<div class="empty-wrap">
+          <div class="empty-card">
+            <h1>Create your first bot</h1>
+            <p class="muted" style="margin:8px 0 14px">Click the <span class="mono">＋</span> slot in the left rail to create a bot. Configure skills, connectors, and channels afterward in the right sidebar.</p>
+            <div style="display:flex;justify-content:center;gap:8px">
+              <button type="button" class="primary" data-action="open-new-bot">＋ New bot</button>
+              <button type="button" data-action="open-user-connectors">Connectors</button>
+            </div>
+          </div>
+        </div>`
+      }
+
+      function openNewBotDialog() {
+        const d = state.newBotDraft
+        const previewBot = { name: d.name || 'New Bot', shape: d.shape, color: d.color }
+        showDialog(
+          'New bot',
+          `<form id="new-bot-form">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:14px">
+              ${botAvatar(previewBot, 'xl')}
+            </div>
+            <label class="field">
+              <span>Name</span>
+              <input id="nb-name" name="botName" value="${esc(d.name)}" placeholder="e.g. Incident Helper" required />
+            </label>
+            <div class="field">
+              <span>Avatar shape</span>
+              <div class="pill-row" style="gap:8px">
+                ${SHAPES.map(
+                  (s) =>
+                    `<button type="button" class="shape-pick ${d.shape === s ? 'active' : ''}" data-nb-shape="${s}" aria-label="Shape ${s}" title="${s}">${botAvatar({ name: d.name || 'NB', shape: s, color: d.color }, 'sm')}</button>`,
+                ).join('')}
+              </div>
+            </div>
+            <div class="field">
+              <span>Color</span>
+              <div class="pill-row" style="gap:8px">
+                ${COLORS.map((c) => `<button type="button" class="swatch ${d.color === c ? 'active' : ''}" style="background:${c}" data-nb-color="${c}" aria-label="Color ${c}"></button>`).join('')}
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <span>Harness</span>
+              <div class="segments" role="group" aria-label="New bot harness">
+                <button type="button" style="flex:1;justify-content:center" class="${d.runtimeMode === 'local' ? 'active' : ''}" data-nb-runtime="local">Local</button>
+                <button type="button" style="flex:1;justify-content:center" class="${d.runtimeMode === 'remote' ? 'active' : ''}" data-nb-runtime="remote">Remote (prod-us)</button>
+              </div>
+            </div>
+          </form>`,
+          `<button type="button" data-action="close-dialog">Cancel</button>
+           <button type="submit" form="new-bot-form" class="primary">Create bot</button>`,
+        )
+      }
+
+      function openAddMcpDialog() {
+        showDialog(
+          'Add custom MCP server',
+          `<form id="add-mcp-form">
+            <p class="muted" style="margin-bottom:10px">Register a local stdio or remote Streamable HTTP MCP server. Enable its tools per bot in Settings.</p>
+            <label class="field"><span>Connector name</span><input name="mcpName" value="PagerDuty MCP" required /></label>
+            <label class="field"><span>Transport</span>
+              <select name="transport">
+                <option value="MCP · HTTP">Streamable HTTP / SSE</option>
+                <option value="MCP · stdio">Local stdio command</option>
+              </select>
+            </label>
+            <label class="field"><span>Server URL or command</span><input name="endpoint" class="mono" value="https://mcp.internal.local/pagerduty" required /></label>
+            <label class="field" style="margin-bottom:0"><span>Credential reference (optional)</span><input name="secretRef" class="mono" value="env:PAGERDUTY_MCP_TOKEN" /></label>
+          </form>`,
+          `<button type="button" data-action="close-dialog">Cancel</button>
+           <button type="submit" form="add-mcp-form" class="primary">Add MCP</button>`,
+        )
+      }
+
+      function render() {
+        const bot = currentBot()
+        let mainHtml = ''
+
+        if (state.view === 'empty') {
+          mainHtml = renderEmptyState()
+        } else if (state.view === 'user-connectors') {
+          mainHtml = renderUserConnectors()
+        } else if (state.view === 'user-settings') {
+          mainHtml = renderUserSettings()
+        } else {
+          if (state.tab === 'chat') mainHtml = renderChatTab(bot)
+          else if (state.tab === 'stats') mainHtml = renderStatsTab(bot)
+          else if (state.tab === 'sessions') mainHtml = renderSessionsTab(bot)
+          else mainHtml = renderTracesTab(bot)
+        }
+
+        const showDrawer = state.view === 'bot' && state.settingsOpen
+
+        app.innerHTML = DOMPurify.sanitize(
+          `<div class="shell">
+            ${renderTopbar()}
+            <div class="body-row">
+              ${renderRail()}
+              <main class="main">${mainHtml}</main>
+              ${showDrawer ? renderBotSettingsDrawer(bot) : ''}
+            </div>
+          </div>`,
+          {
+            ADD_ATTR: [
+              'data-action',
+              'data-select-bot',
+              'data-tab',
+              'data-toggle-steps',
+              'data-open-trace',
+              'data-approval',
+              'data-msg-idx',
+              'data-stats-range',
+              'data-select-session',
+              'data-trace-view',
+              'data-select-obs',
+              'data-obs-tab',
+              'data-bot-settings',
+              'data-bot-runtime',
+              'data-bot-shape',
+              'data-bot-color',
+              'data-bot-conn-toggle',
+              'data-skill-toggle',
+              'data-perm-conn',
+              'data-perm-tool',
+              'data-perm-val',
+              'data-channel-toggle',
+              'data-channel-field',
+              'data-conn-filter',
+              'data-toggle-conn',
+              'aria-current',
+              'aria-pressed',
+              'aria-selected',
+              'aria-haspopup',
+              'aria-expanded',
+              'aria-controls',
+              'role',
+              'viewBox',
+              'stroke-width',
+              'stroke-linecap',
+              'stroke-linejoin',
+            ],
+            ADD_TAGS: ['svg', 'g', 'rect', 'line', 'polyline', 'text', 'path', 'circle', 'ellipse'],
+          },
+        )
+        if (window.HSStaticMethods) window.HSStaticMethods.autoInit()
+      }
+
+      function applyHash() {
+        closeDialog()
+        state.accountMenuOpen = false
+        state.settingsOpen = false
+        const hash = (location.hash || '#chat').replace(/^#/, '')
+
+        if (hash === 'empty') {
+          state.view = 'empty'
+          render()
+          return
+        }
+        if (hash === 'user-connectors' || hash === 'add-mcp') {
+          state.view = 'user-connectors'
+          render()
+          if (hash === 'add-mcp') openAddMcpDialog()
+          return
+        }
+        if (hash === 'user-settings') {
+          state.view = 'user-settings'
+          render()
+          return
+        }
+        if (hash === 'user-menu') {
+          state.view = 'bot'
+          state.selectedBot = 'support-triage'
+          state.tab = 'chat'
+          state.accountMenuOpen = true
+          render()
+          return
+        }
+
+        state.view = 'bot'
+        if (hash === 'chat-remote') {
+          state.selectedBot = 'pr-concierge'
+          state.tab = 'chat'
+          render()
+          return
+        }
+        state.selectedBot = 'support-triage'
+        if (hash === 'chat' || hash === 'chat-approval' || hash === 'new-bot') {
+          state.tab = 'chat'
+          const bot = currentBot()
+          if (bot.chatMessages[1]) bot.chatMessages[1].stepsOpen = hash === 'chat'
+          render()
+          const stream = document.querySelector('.chat-stream')
+          if (stream && hash === 'chat-approval') {
+            stream.scrollTop = stream.scrollHeight
+          }
+          if (hash === 'new-bot') openNewBotDialog()
+          return
+        }
+        if (hash === 'stats') {
+          state.tab = 'stats'
+          render()
+          return
+        }
+        if (hash === 'sessions') {
+          state.tab = 'sessions'
+          state.selectedSessionId = 'sess_slk_91a2'
+          render()
+          return
+        }
+        if (hash === 'traces') {
+          state.tab = 'traces'
+          state.selectedTraceId = null
+          render()
+          return
+        }
+        if (hash === 'trace-detail') {
+          state.tab = 'traces'
+          state.selectedTraceId = 'tr_891a'
+          state.selectedObsId = 'obs_4'
+          state.traceViewMode = 'waterfall'
+          state.obsTab = 'io'
+          render()
+          return
+        }
+        if (
+          hash === 'bot-settings' ||
+          hash === 'bot-skills' ||
+          hash === 'bot-connectors' ||
+          hash === 'bot-channels' ||
+          hash === 'bot-files'
+        ) {
+          state.tab = 'chat'
+          state.settingsOpen = true
+          state.botSettingsSection = hash === 'bot-settings' ? 'general' : hash.replace('bot-', '')
+          render()
+          return
+        }
+        state.tab = 'chat'
+        render()
+      }
+
+      window.addEventListener('hashchange', applyHash)
+
+      document.addEventListener('click', (e) => {
+        const el = e.target.closest(
+          '[data-action],[data-select-bot],[data-tab],[data-toggle-steps],[data-open-trace],[data-approval],[data-stats-range],[data-select-session],[data-trace-view],[data-select-obs],[data-obs-tab],[data-bot-settings],[data-bot-runtime],[data-bot-shape],[data-bot-color],[data-perm-conn],[data-conn-filter],[data-toggle-conn],[data-nb-shape],[data-nb-color],[data-nb-runtime]',
+        )
+        if (!el) {
+          if (state.accountMenuOpen && !e.target.closest('.account-menu')) {
+            state.accountMenuOpen = false
+            render()
+          }
+          return
+        }
+
+        if (el.dataset.nbShape) {
+          state.newBotDraft.shape = el.dataset.nbShape
+          openNewBotDialog()
+          return
+        }
+        if (el.dataset.nbColor) {
+          state.newBotDraft.color = el.dataset.nbColor
+          openNewBotDialog()
+          return
+        }
+        if (el.dataset.nbRuntime) {
+          state.newBotDraft.runtimeMode = el.dataset.nbRuntime
+          openNewBotDialog()
+          return
+        }
+
+        if (el.dataset.selectBot) {
+          state.view = 'bot'
+          state.accountMenuOpen = false
+          state.selectedBot = el.dataset.selectBot
+          render()
+          return
+        }
+        if (el.dataset.tab) {
+          state.view = 'bot'
+          state.accountMenuOpen = false
+          state.tab = el.dataset.tab
+          if (state.tab !== 'traces') state.selectedTraceId = null
+          render()
+          return
+        }
+        if (el.dataset.toggleSteps !== undefined) {
+          const msg = currentBot().chatMessages[Number(el.dataset.toggleSteps)]
+          if (msg) msg.stepsOpen = !msg.stepsOpen
+          render()
+          return
+        }
+        if (el.dataset.openTrace) {
+          state.view = 'bot'
+          state.tab = 'traces'
+          state.selectedTraceId = el.dataset.openTrace
+          const tr = TRACES.find((t) => t.id === state.selectedTraceId)
+          state.selectedObsId = tr?.observations[0]?.id || null
+          render()
+          return
+        }
+        if (el.dataset.approval) {
+          const bot = currentBot()
+          const msg = bot.chatMessages[Number(el.dataset.msgIdx)]
+          if (msg?.approval) {
+            if (el.dataset.approval === 'allow-once') {
+              msg.approval.status = 'once'
+              notify('Allowed once · reply posted (prototype)')
+            } else if (el.dataset.approval === 'always-allow') {
+              msg.approval.status = 'always'
+              if (bot.connectorPerms.slack) {
+                bot.connectorPerms.slack.tools.post_message = 'allow'
+              }
+              notify('Updated slack.post_message policy to Allow')
+            } else {
+              msg.approval.status = 'denied'
+              notify('Tool call denied and recorded in trace')
+            }
+          }
+          render()
+          return
+        }
+        if (el.dataset.statsRange) {
+          state.statsRange = el.dataset.statsRange
+          render()
+          return
+        }
+        if (el.dataset.selectSession) {
+          state.selectedSessionId = el.dataset.selectSession
+          render()
+          return
+        }
+        if (el.dataset.traceView) {
+          state.traceViewMode = el.dataset.traceView
+          render()
+          return
+        }
+        if (el.dataset.selectObs) {
+          state.selectedObsId = el.dataset.selectObs
+          render()
+          return
+        }
+        if (el.dataset.obsTab) {
+          state.obsTab = el.dataset.obsTab
+          render()
+          return
+        }
+        if (el.dataset.botSettings) {
+          state.botSettingsSection = el.dataset.botSettings
+          render()
+          return
+        }
+        if (el.dataset.botRuntime) {
+          currentBot().runtimeMode = el.dataset.botRuntime
+          render()
+          return
+        }
+        if (el.dataset.botShape) {
+          currentBot().shape = el.dataset.botShape
+          render()
+          return
+        }
+        if (el.dataset.botColor) {
+          currentBot().color = el.dataset.botColor
+          render()
+          return
+        }
+        if (el.dataset.permConn) {
+          const bot = currentBot()
+          const c = bot.connectorPerms[el.dataset.permConn]
+          if (c) c.tools[el.dataset.permTool] = el.dataset.permVal
+          render()
+          notify(`${el.dataset.permConn}.${el.dataset.permTool} → ${el.dataset.permVal}`)
+          return
+        }
+        if (el.dataset.connFilter) {
+          state.connectorFilter = el.dataset.connFilter
+          render()
+          return
+        }
+        if (el.dataset.toggleConn) {
+          const c = state.connectors.find((x) => x.id === el.dataset.toggleConn)
+          if (c) {
+            c.status = c.status === 'Connected' ? 'Not connected' : 'Connected'
+            notify(`${c.name}: ${c.status}`)
+          }
+          render()
+          return
+        }
+
+        switch (el.dataset.action) {
+          case 'toggle-bot-settings':
+            state.settingsOpen = !state.settingsOpen
+            render()
+            break
+          case 'toggle-account-menu':
+            state.accountMenuOpen = !state.accountMenuOpen
+            render()
+            break
+          case 'open-new-bot':
+            state.accountMenuOpen = false
+            openNewBotDialog()
+            break
+          case 'open-add-mcp':
+            openAddMcpDialog()
+            break
+          case 'close-dialog':
+            closeDialog()
+            break
+          case 'open-user-connectors':
+            state.view = 'user-connectors'
+            state.accountMenuOpen = false
+            render()
+            break
+          case 'open-user-settings':
+            state.view = 'user-settings'
+            state.accountMenuOpen = false
+            render()
+            break
+          case 'sign-out':
+            state.accountMenuOpen = false
+            render()
+            notify('Signed out of remote servers (prototype)')
+            break
+          case 'go-traces':
+            state.tab = 'traces'
+            state.selectedTraceId = null
+            render()
+            break
+          case 'back-to-traces':
+            state.selectedTraceId = null
+            render()
+            break
+          case 'add-skill': {
+            const bot = currentBot()
+            const n = bot.skills.length + 1
+            bot.skills.push({
+              slug: `custom-skill-${n}`,
+              summary: 'Custom skill instructions loaded from bot directory.',
+              enabled: true,
+            })
+            render()
+            notify(`Added skills/custom-skill-${n}/SKILL.md`)
+            break
+          }
+          case 'save-bot':
+            notify(`Saved ${botLocation(currentBot())}/bot.yaml`)
+            break
+          case 'save-user-settings':
+            notify('Saved ~/.diffagent/config.yaml')
+            break
+        }
+      })
+
+      document.addEventListener('input', (e) => {
+        if (e.target.id === 'chat-input') state.draftMessage = e.target.value
+        if (e.target.id === 'nb-name') state.newBotDraft.name = e.target.value
+        if (e.target.id === 'session-search') {
+          state.sessionSearch = e.target.value
+          render()
+          const input = document.getElementById('session-search')
+          if (input) {
+            input.focus()
+            input.setSelectionRange(input.value.length, input.value.length)
+          }
+        }
+        if (e.target.id === 'trace-search') {
+          state.traceSearch = e.target.value
+          render()
+          const input = document.getElementById('trace-search')
+          if (input) {
+            input.focus()
+            input.setSelectionRange(input.value.length, input.value.length)
+          }
+        }
+        if (e.target.id === 'bot-name-input') currentBot().name = e.target.value
+        if (e.target.id === 'bot-steps-input') currentBot().maxSteps = Number(e.target.value) || 6
+        if (e.target.id === 'bot-budget-input')
+          currentBot().dailyBudgetUsd = Number(e.target.value) || 10
+        if (e.target.id === 'bot-instructions-input') currentBot().instructions = e.target.value
+        if (e.target.dataset.channelField) {
+          const [ch, field] = e.target.dataset.channelField.split('.')
+          currentBot().channels[ch][field] = e.target.value
+        }
+      })
+
+      document.addEventListener('change', (e) => {
+        if (e.target.id === 'stats-channel') {
+          state.statsChannel = e.target.value
+          render()
+        }
+        if (e.target.id === 'session-channel') {
+          state.sessionChannel = e.target.value
+          render()
+        }
+        if (e.target.id === 'trace-channel') {
+          state.traceChannel = e.target.value
+          render()
+        }
+        if (e.target.id === 'trace-status') {
+          state.traceStatus = e.target.value
+          render()
+        }
+        if (e.target.id === 'bot-model-select') {
+          currentBot().model = e.target.value
+          render()
+        }
+        if (e.target.id === 'bot-server-select') {
+          currentBot().remoteServer = e.target.value
+          render()
+        }
+        if (e.target.dataset.skillToggle !== undefined) {
+          const sk = currentBot().skills[Number(e.target.dataset.skillToggle)]
+          if (sk) sk.enabled = e.target.checked
+          render()
+        }
+        if (e.target.dataset.botConnToggle) {
+          const id = e.target.dataset.botConnToggle
+          const bot = currentBot()
+          const c = state.connectors.find((x) => x.id === id)
+          if (!bot.connectorPerms[id]) {
+            bot.connectorPerms[id] = {
+              enabled: true,
+              tools: Object.fromEntries(c.tools.map((t) => [t.id, 'ask'])),
+            }
+          } else {
+            bot.connectorPerms[id].enabled = e.target.checked
+          }
+          render()
+        }
+        if (e.target.dataset.channelToggle) {
+          currentBot().channels[e.target.dataset.channelToggle].enabled = e.target.checked
+          render()
+        }
+        if (e.target.id === 'user-retention') state.userSettings.retentionDays = e.target.value
+        if (e.target.id === 'user-autoreload') state.userSettings.autoReload = e.target.checked
+        if (e.target.id === 'user-theme') state.userSettings.theme = e.target.value
+        if (e.target.id === 'user-policy') state.userSettings.defaultWritePolicy = e.target.value
+      })
+
+      document.addEventListener('submit', (e) => {
+        e.preventDefault()
+        if (e.target.id === 'chat-form') {
+          const text = state.draftMessage.trim()
+          if (!text) return
+          const bot = currentBot()
+          bot.chatMessages.push({
+            role: 'user',
+            author: 'Sam',
+            time: 'now',
+            text,
+          })
+          bot.chatMessages.push({
+            role: 'bot',
+            time: 'now',
+            traceId: 'tr_891a',
+            stepsOpen: false,
+            latency: '0.94s',
+            tokens: '1,180 tok',
+            cost: '$0.0019',
+            steps: [
+              {
+                type: 'gen',
+                name: bot.model,
+                ms: '940ms',
+                summary: '880 in · 300 out',
+              },
+            ],
+            text: `Simulated reply from ${bot.name}. Inspect the trace link above to explore token usage, latency, and tool spans.`,
+          })
+          state.draftMessage = ''
+          render()
+          const stream = document.querySelector('.chat-stream')
+          if (stream) stream.scrollTop = stream.scrollHeight
+        }
+        if (e.target.id === 'new-bot-form') {
+          const fd = new FormData(e.target)
+          const name = String(fd.get('botName') || state.newBotDraft.name || 'New Bot').trim()
+          const slug =
+            name
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-|-$/g, '') || 'new-bot'
+          const d = state.newBotDraft
+          state.bots.push({
+            slug,
+            name,
+            color: d.color,
+            shape: d.shape,
+            status: 'online',
+            runtimeMode: d.runtimeMode,
+            remoteServer: d.remoteServer,
+            model: 'claude-sonnet-4-6',
+            maxSteps: 8,
+            dailyBudgetUsd: 10,
+            instructions: `You are ${name}.`,
+            skills: [],
+            channels: {
+              slack: { enabled: false, targets: '', trigger: '@mention', tokenRef: '' },
+              discord: { enabled: false, targets: '', trigger: '/ask', tokenRef: '' },
+              web: {
+                enabled: false,
+                endpoint:
+                  d.runtimeMode === 'remote'
+                    ? `https://bots.difflab.internal/v1/bots/${slug}/chat`
+                    : `http://127.0.0.1:4170/v1/bots/${slug}/chat`,
+                protocol: 'HTTP SSE + AG-UI',
+                origins: '',
+              },
+            },
+            connectorPerms: {},
+            chatMessages: [],
+            sessions: [],
+          })
+          state.view = 'bot'
+          state.selectedBot = slug
+          state.tab = 'chat'
+          state.settingsOpen = false
+          closeDialog()
+          render()
+          notify(
+            `Created ${name} (${d.runtimeMode === 'remote' ? 'remote' : `~/.diffagent/bots/${slug}`})`,
+          )
+        }
+        if (e.target.id === 'add-mcp-form') {
+          const fd = new FormData(e.target)
+          const name = String(fd.get('mcpName') || 'Custom MCP').trim()
+          const id = name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+          state.connectors.push({
+            id: id || 'custom-mcp',
+            name,
+            category: 'Custom MCP',
+            kind: String(fd.get('transport') || 'MCP · HTTP'),
+            status: 'Connected',
+            account: String(fd.get('endpoint') || ''),
+            secretRef: String(fd.get('secretRef') || 'none'),
+            tools: [{ id: 'invoke', label: 'Invoke MCP tool' }],
+          })
+          closeDialog()
+          render()
+          notify(`Connected ${name}`)
+        }
+      })
+
+      document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && e.target.id === 'chat-input') {
+          e.preventDefault()
+          document.getElementById('chat-form')?.requestSubmit()
+        }
+      })
+
+      applyHash()
+    </script>
+  </body>
+</html>
